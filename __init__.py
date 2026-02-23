@@ -8,12 +8,26 @@ bl_info = {
     "category": "Import-Export",
 }
 
-import bpy
+# =========================================================
+# [마법의 리로드 코드] 무조건 파일 '최상단'에 위치해야 합니다!
+# =========================================================
+if "bpy" in locals():
+    import importlib
+    importlib.reload(profiles)
+    importlib.reload(core)
+else:
+    import bpy
+    from . import profiles
+    from . import core
+# =========================================================
+
 import os
+import bpy.utils.previews
 from bpy_extras.io_utils import ImportHelper
-from bpy.props import StringProperty, EnumProperty
+from bpy.props import StringProperty, EnumProperty, BoolProperty
 from bpy.types import Operator
-from .core import execute_import
+
+custom_icons = None
 
 class ImportPolarisTKAnimation(Operator, ImportHelper):
     bl_idname = "import_anim.polaris_tk"
@@ -23,7 +37,6 @@ class ImportPolarisTKAnimation(Operator, ImportHelper):
     filename_ext = ".bin"
     filter_glob: StringProperty(default="*.bin", options={'HIDDEN'})
 
-    # [수정됨] 6가지 카테고리 완벽 반영
     anim_type: EnumProperty(
         name="Animation Type",
         description="Select the type of animation to apply the correct bone profiles",
@@ -38,13 +51,20 @@ class ImportPolarisTKAnimation(Operator, ImportHelper):
         default='FULLBODY',
     )
 
+    apply_apose_offset: BoolProperty(
+        name="ImportToPolaris(A-Pose Base)",
+        description="원본(A-Pose) 뼈대에 T-Pose 애니메이션을 맞추기 위해 관절에 추가 회전 오프셋을 적용합니다.",
+        default=True,
+    )
+
     def execute(self, context):
         obj = context.view_layer.objects.active
         if not obj or obj.type != 'ARMATURE':
             self.report({'ERROR'}, "뷰포트에서 캐릭터의 Armature(뼈대)를 선택해주세요.")
             return {'CANCELLED'}
 
-        missing_bones = execute_import(self.filepath, obj, self.anim_type)
+        # 이제 core가 완벽하게 인식됩니다!
+        missing_bones = core.execute_import(self.filepath, obj, self.anim_type, self.apply_apose_offset)
 
         if missing_bones:
             missing_msg = f"일부 뼈대를 찾지 못해 건너뛰었습니다 ({len(missing_bones)}개). 시스템 콘솔을 확인하세요."
@@ -54,36 +74,32 @@ class ImportPolarisTKAnimation(Operator, ImportHelper):
         self.report({'INFO'}, f"Polaris [{self.anim_type}] Animation Import DONE!")
         return {'FINISHED'}
 
-# 커스텀 아이콘을 저장할 글로벌 변수
-custom_icons = None
-
 def menu_func_import(self, context):
     global custom_icons
-    # 내장 아이콘은 icon='...'을 쓰지만, 커스텀은 icon_value=...를 씁니다!
-    self.layout.operator(
-        ImportPolarisTKAnimation.bl_idname, 
-        text="Polaris TK Animation (.bin)", 
-        icon_value=custom_icons["polaris_logo"].icon_id
-    )
+    if custom_icons and "polaris_logo" in custom_icons:
+        self.layout.operator(ImportPolarisTKAnimation.bl_idname, text="Polaris TK Animation (.bin)", icon_value=custom_icons["polaris_logo"].icon_id)
+    else:
+        self.layout.operator(ImportPolarisTKAnimation.bl_idname, text="Polaris TK Animation (.bin)", icon='ACTION')
 
 def register():
     global custom_icons
     custom_icons = bpy.utils.previews.new()
-    
-    # 현재 스크립트(__init__.py) 경로를 기준으로 icons 폴더 찾기
     icons_dir = os.path.join(os.path.dirname(__file__), "icons")
+    icon_path = os.path.join(icons_dir, "polaris.png")
     
-    # 'polaris_logo'라는 이름으로 my_icon.png 파일 로드
-    custom_icons.load("polaris_logo", os.path.join(icons_dir, "polaris.png"), 'IMAGE')
-    
+    if os.path.exists(icon_path):
+        custom_icons.load("polaris_logo", icon_path, 'IMAGE')
+    else:
+        print(f"[Polaris TK] 커스텀 아이콘을 찾을 수 없습니다: {icon_path}")
+        
     bpy.utils.register_class(ImportPolarisTKAnimation)
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
 
 def unregister():
     global custom_icons
-    # 블렌더 메모리 누수 방지를 위해 해제 필수!
-    bpy.utils.previews.remove(custom_icons)
-    
+    if custom_icons is not None:
+        bpy.utils.previews.remove(custom_icons)
+        
     bpy.utils.unregister_class(ImportPolarisTKAnimation)
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
 

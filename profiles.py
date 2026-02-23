@@ -13,7 +13,7 @@ FULLBODY_ROOTS = {"Top", "Trans"}
 
 FULLBODY_GROUPS = {
     "ROOT_MOTION": {
-        "bones": {"Top", "Trans", "Rot", "Hip"}, 
+        "bones": {"Top", "Trans", "Rot"}, 
         "basis": (0, 0, 90), 
         "flip": False, 
         "offset": (0, 0, 0),
@@ -22,39 +22,76 @@ FULLBODY_GROUPS = {
     },
     "GROUP_A": { 
         "bones": {"Spine1", "Spine2", "Neck", "Head", "R_UpperArm", "PMP_R_UpperArm", "R_LowerArm", "PMP_R_LowerArm", "R_LowerLeg", "L_UpperArm", "PMP_L_UpperArm", "L_LowerArm", "PMP_L_LowerArm", "L_LowerLeg", "L_Foot", "R_Foot"},
-        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0), 
-        "loc_map": ("x", "y", "z"), "scale_div": 100.0
+        "basis": (0, 0, 90), 
+        "flip": False, 
+        "offset": (0, 0, 0), 
+        "loc_map": ("x", "y", "z"), 
+        "scale_div": 100.0
     },
     "GROUP_B": { 
         "bones": {"R_Shoulder"},
-        "basis": (0, 0, 90), "flip": False, "offset": (0, -90, 0),
-        "loc_map": ("x", "y", "z"), "scale_div": 100.0
+        "basis": (0, 0, 90), 
+        "flip": False, 
+        "offset": (0, -90, 0),
+        "loc_map": ("x", "y", "z"), 
+        "scale_div": 100.0
     },
     "GROUP_C": { 
         "bones": {"L_Shoulder"},
-        "basis": (0, 0, 90), "flip": False, "offset": (0, 90, 0),
-        "loc_map": ("x", "y", "z"), "scale_div": 100.0
+        "basis": (0, 0, 90), 
+        "flip": False, 
+        "offset": (0, 90, 0),
+        "loc_map": ("x", "y", "z"), 
+        "scale_div": 100.0
     },
     "GROUP_D": { 
         "bones": {"R_UpperLeg", "L_UpperLeg"}, 
-        "basis": (0, 0, -90), "flip": False, "offset": (0, 0, 180), 
-        "loc_map": ("x", "y", "z"), "scale_div": 100.0
+        "basis": (0, 0, -90), 
+        "flip": False, 
+        "offset": (0, 0, 180), 
+        "loc_map": ("x", "y", "z"), 
+        "scale_div": 100.0
     },
     "GROUP_E": { 
         "bones": {"L_Hand"}, 
-        "basis": (0, 0, -90), "flip": False, "offset": (-90, 0, 0), 
-        "loc_map": ("x", "y", "z"), "scale_div": 100.0
+        "basis": (0, 0, -90), 
+        "flip": False, 
+        "offset": (-90, 0, 0), 
+        "loc_map": ("x", "y", "z"), 
+        "scale_div": 100.0
     },
     "GROUP_F": { 
         "bones": {"R_Hand"}, 
-        "basis": (0, 0, 0), "flip": False, "offset": (90, 0, 0), 
-        "loc_map": ("x", "y", "z"), "scale_div": 100.0
+        "basis": (0, 0, 0), 
+        "flip": False, 
+        "offset": (90, 0, 0), 
+        "loc_map": ("x", "y", "z"), 
+        "scale_div": 100.0
     },
     "GROUP_G": { 
         "bones": {"L_Toe", "R_Toe"}, 
-        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 90), 
-        "loc_map": ("x", "y", "z"), "scale_div": 100.0
-    }
+        "basis": (0, 0, 90), 
+        "flip": False, 
+        "offset": (0, 0, 90), 
+        "loc_map": ("x", "y", "z"), 
+        "scale_div": 100.0
+    },
+    "GROUP_H": { 
+        "bones": {"Hip"}, 
+        "basis": (0, 0, 90), 
+        "flip": False, 
+        "offset": (0, -90, -90), 
+        "loc_map": ("x", "y", "z"), 
+        "scale_div": 100.0
+    },
+    "GROUP_I_global": { 
+        "bones": {"DUMMY"}, 
+        "basis": (0, 0, 90),
+        "flip": False,
+        "offset": (0, 0, 0), 
+        "loc_map": ("x", "y", "z"),
+        "scale_div": 100.0
+    },
 }
 
 # =======================================================
@@ -85,4 +122,20 @@ PROFILE_REGISTRY = {
     'WING':     (WING_ROOTS, WING_GROUPS),
     'CAMERA':   (CAMERA_ROOTS, CAMERA_GROUPS),
     'EXTRA':    (EXTRA_ROOTS, EXTRA_GROUPS)
+}
+
+# =======================================================
+# 3. A-Pose 보정 오프셋 (사용자 맞춤형 황금 수치)
+# =======================================================
+APOSE_OFFSETS = {
+    "L_Shoulder": (-10, 0, 0),
+    "R_Shoulder": (10, 0, 0),
+    "L_UpperArm": (-35, 0, 0), 
+    "R_UpperArm": (35, 0, 0),
+    "L_LowerArm": (0, 0, -15),
+    "R_LowerArm": (0, 0, -15),
+    "L_UpperLeg": (-5.99981, 0, 0),
+    "R_UpperLeg": (5.99981, 0, 0),
+    "L_Foot":     (5.99909, 0, 0),
+    "R_Foot":     (-5.99909, 0, 0)
 }

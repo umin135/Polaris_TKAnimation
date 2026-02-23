@@ -3,14 +3,14 @@ import struct
 import mathutils
 import math
 import os
-from .profiles import PROFILE_REGISTRY, DEFAULT_FALLBACK
+from .profiles import PROFILE_REGISTRY, DEFAULT_FALLBACK, APOSE_OFFSETS
 
 def read_uint32(f):
     data = f.read(4)
     if len(data) < 4: return 0
     return struct.unpack('<I', data)[0]
 
-def execute_import(filepath, obj, anim_type):
+def execute_import(filepath, obj, anim_type, apply_apose=False): 
     if not obj.animation_data:
         obj.animation_data_create()
     
@@ -31,6 +31,8 @@ def execute_import(filepath, obj, anim_type):
     missing_bones = [] 
 
     root_bones, target_groups = PROFILE_REGISTRY.get(anim_type, (set(), {}))
+
+    do_apose_correction = apply_apose and anim_type in ('FULLBODY', 'EXTRA')
 
     with open(filepath, 'rb') as f:
         f.seek(0x40)
@@ -130,15 +132,27 @@ def execute_import(filepath, obj, anim_type):
                 anim_loc = mathutils.Vector((mapped_px, mapped_py, mapped_pz))
                 anim_quat = mathutils.Quaternion((qw, qx, qy, qz))
                 
+                # 원본 엔진 오프셋 적용
                 offset_quat = mathutils.Euler((math.radians(ox), math.radians(oy), math.radians(oz)), 'XYZ').to_quaternion()
                 anim_quat = anim_quat @ offset_quat
                 
                 anim_scale = mathutils.Vector((sx, sy, sz))
                 M_engine = mathutils.Matrix.LocRotScale(anim_loc, anim_quat, anim_scale)
                 
+                # 블렌더 공간 변환
                 M_blender = C_mat @ M_engine @ C_inv
-                
                 b_loc, b_rot, b_sca = M_blender.decompose()
+                
+                # =======================================================
+                # [수학적 완벽함] Rest Pose Apply 시뮬레이션
+                # =======================================================
+                if do_apose_correction and bone_name in APOSE_OFFSETS:
+                    ax, ay, az = APOSE_OFFSETS[bone_name]
+                    apose_quat = mathutils.Euler((math.radians(ax), math.radians(ay), math.radians(az)), 'XYZ').to_quaternion()
+                    
+                    # 애니메이션(b_rot)의 '왼쪽'에 곱함으로써, apose_quat을 이 뼈대의 새로운 축(Rest Pose)으로 만듭니다!
+                    b_rot = apose_quat @ b_rot
+                # =======================================================
                 
                 if bone_name in root_bones:
                     pbone.location = b_loc
