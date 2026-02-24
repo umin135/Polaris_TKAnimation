@@ -54,7 +54,7 @@ FULLBODY_GROUPS = {
     },
     "GROUP_E": { 
         "bones": {"L_Hand"}, 
-        "basis": (0, 0, -90), 
+        "basis": (0, 180, 90), 
         "flip": False, 
         "offset": (-90, 0, 0), 
         "loc_map": ("x", "y", "z"), 
@@ -62,7 +62,7 @@ FULLBODY_GROUPS = {
     },
     "GROUP_F": { 
         "bones": {"R_Hand"}, 
-        "basis": (0, 0, 0), 
+        "basis": (90, -90, 90), 
         "flip": False, 
         "offset": (90, 0, 0), 
         "loc_map": ("x", "y", "z"), 
@@ -70,7 +70,7 @@ FULLBODY_GROUPS = {
     },
     "GROUP_G": { 
         "bones": {"L_Toe", "R_Toe"}, 
-        "basis": (0, 0, 90), 
+        "basis": (90, 0, 0), 
         "flip": False, 
         "offset": (0, 0, 90), 
         "loc_map": ("x", "y", "z"), 
