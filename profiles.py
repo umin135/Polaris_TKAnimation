@@ -60,7 +60,7 @@ FULLBODY_GROUPS = {
     },
     "GROUP_E": { 
         "bones": {"L_Hand"}, 
-        "basis": (90, 0, 90), 
+        "basis": (-90, 0, 90), 
         "flip": False, 
         "offset": (-90, 0, 0), 
         "loc_map": ("x", "y", "z"), 
