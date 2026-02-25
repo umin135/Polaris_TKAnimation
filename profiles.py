@@ -173,13 +173,76 @@ HAND_GROUPS = {
 }
 
 # =======================================================
-# 3. 다른 카테고리 프로필 준비
+# 3. Facial 프로필
 # =======================================================
 FACIAL_ROOTS = set()
 FACIAL_GROUPS = {}
 
+# =======================================================
+# 3. WING (날개 / 소품) 프로필 
+# =======================================================
 WING_ROOTS = set()
-WING_GROUPS = {}
+
+WING_GROUPS = {
+    "WING_LEFT": {
+        "bones": {
+            "ATH_L_burnier", "ATH_L_burnier_separator", "ATH_L_got_00", "ATH_L_got_01", "ATH_L_got_Index1", 
+            "ATH_L_got_Index2", "ATH_L_got_Index3", "ATH_L_got_Middle1", "ATH_L_got_Middle2", "ATH_L_got_Middle3", 
+            "ATH_L_got_Pinky1", "ATH_L_got_Pinky2", "ATH_L_got_Pinky3", "ATH_L_got_Ring1", "ATH_L_got_Ring2", 
+            "ATH_L_got_Ring3", "ATH_L_got_Thumb0", "ATH_L_got_Thumb1", "ATH_L_got_Thumb2", "ATH_mnt_L_armwing", 
+            "ATH_mnt_L_burnier_back", "ATH_mnt_L_chainsaw", "ATH_pse_featherA_01_l", "ATH_pse_featherA_02_l", 
+            "ATH_pse_featherA_03_l", "ATH_pse_featherA_04_l", "ATH_pse_featherA_05_l", "ATH_pse_featherB_01_l", 
+            "ATH_pse_featherB_02_l", "ATH_pse_featherB_03_l", "ATH_pse_featherB_04_l", "ATH_pse_featherC_01_l", 
+            "ATH_pse_featherC_02_l", "ATH_pse_featherC_03_l", "ATH_pse_launchPadA_01_l", "ATH_pse_launchPadA_02_l", 
+            "ATH_pse_launchPadA_03_l", "ATH_pse_launchPadA_04_l", "ATH_pse_launchPadB_01_l", "ATH_pse_launchPadB_02_l", 
+            "ATH_pse_launchPadB_03_l", "ATH_pse_launchPadRootA_01_l", "ATH_pse_launchPadRootB_01_l", "ATH_pse_wing_01_l", 
+            "ATH_pse_wing_02_l", "ATH_wingL_1st", "ATH_wingL_2nd", "ATH_wingL_5th", "ATH_wingL_6th", "ATH_wingL_top", 
+            "L_Have", "OPT600_haneLtop", "OPT601_haneL1st", "OPT602_haneL2nd", "OPT606_haneL3rd", "OPT607_haneL4th", 
+            "OPT702_wingL_2nd", "OPT703_wingL_3rd", "OPT704_wingL_top", "OPT705_wingL_top", "OPT900_wingL_top", 
+            "OPT901_wingL_1st", "OPT902_wingL_2nd", "OPT903_wingL_3rd", "OPT904_wingL_top", "OPT905_wingL_top", 
+            "OPT950_wingL_top", "OPT951_wingL_1st", "OPT952_wingL_2nd", "OPT953_wingL_3rd", "OPT954_wingL_top", 
+            "OPT955_wingL_top", "SWG_wingL_3rd", "SWG_wingL_4th", "ATH_Head_Leyelid", "ATH_Spine2_Leyelid"
+        },
+        "basis": (0, 0, 90),
+        "flip": False,
+        "offset": (0, 180, 0), # 💡 테스트 1: X축을 180도 뒤집어서 위아래 반전을 교정
+        "loc_map": ("x", "y", "z"),
+        "scale_div": 100.0
+    },
+    "WING_RIGHT": {
+        "bones": {
+            "ATH_R_burnier", "ATH_R_burnier_separator", "ATH_mnt_R_armwing", "ATH_mnt_R_burnier_back", 
+            "ATH_mnt_R_chainsaw", "ATH_pse_featherA_01_r", "ATH_pse_featherA_02_r", "ATH_pse_featherA_03_r", 
+            "ATH_pse_featherA_04_r", "ATH_pse_featherA_05_r", "ATH_pse_featherB_01_r", "ATH_pse_featherB_02_r", 
+            "ATH_pse_featherB_03_r", "ATH_pse_featherB_04_r", "ATH_pse_featherC_01_r", "ATH_pse_featherC_02_r", 
+            "ATH_pse_featherC_03_r", "ATH_pse_launchPadA_01_r", "ATH_pse_launchPadA_02_r", "ATH_pse_launchPadA_03_r", 
+            "ATH_pse_launchPadA_04_r", "ATH_pse_launchPadB_01_r", "ATH_pse_launchPadB_02_r", "ATH_pse_launchPadB_03_r", 
+            "ATH_pse_launchPadRootA_01_r", "ATH_pse_launchPadRootB_01_r", "ATH_pse_wing_01_r", "ATH_pse_wing_02_r", 
+            "ATH_wingR_1st", "ATH_wingR_2nd", "ATH_wingR_5th", "ATH_wingR_6th", "ATH_wingR_top", "OPT603_haneRtop", 
+            "OPT604_haneR1st", "OPT605_haneR2nd", "OPT608_haneR3rd", "OPT609_haneR4th", "OPT720_wingR_top", 
+            "OPT721_wingR_1st", "OPT722_wingR_2nd", "OPT723_wingR_3rd", "OPT724_wingR_top", "OPT725_wingR_top", 
+            "OPT920_wingR_top", "OPT921_wingR_1st", "OPT922_wingR_2nd", "OPT923_wingR_3rd", "OPT924_wingR_top", 
+            "OPT925_wingR_top", "OPT970_wingR_top", "OPT971_wingR_1st", "OPT972_wingR_2nd", "OPT973_wingR_3rd", 
+            "OPT974_wingR_top", "OPT975_wingR_top", "R_Have", "SWG_wingR_3rd", "SWG_wingR_4th", "ATH_Head_Reyelid", 
+            "ATH_Spine2_Reyelid"
+        },
+        "basis": (0, 0, 90),
+        "flip": False,
+        "offset": (180, 0, 0), # 💡 테스트 1: X축을 180도 뒤집어서 위아래 반전을 교정
+        "loc_map": ("x", "y", "z"),
+        "scale_div": 100.0
+    },
+    "WING_CENTER_ETC": {
+        "bones": {
+            "ATH_Head_eye", "ATH_Spine2_eye"
+        },
+        "basis": (0, 0, 90),
+        "flip": False,
+        "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"),
+        "scale_div": 100.0
+    }
+}
 
 CAMERA_ROOTS = set()
 CAMERA_GROUPS = {}

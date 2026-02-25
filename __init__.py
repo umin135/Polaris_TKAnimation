@@ -31,34 +31,35 @@ custom_icons = None
 class ImportPolarisBase(ImportHelper):
     bl_options = {'REGISTER', 'UNDO'}
 
+    # 💡 옵션 이름과 설명 영문화. 기본값은 True 유지.
     apply_apose_offset: BoolProperty(
-        name="Apply A-Pose Offset",
-        description="원본(A-Pose) 뼈대에 T-Pose 애니메이션을 맞추기 위해 관절에 추가 회전 오프셋을 적용합니다.",
+        name="Import to Polaris Armature",
+        description="Applies A-Pose offsets suitable for Polaris Armature.",
         default=True,
     )
 
     def execute(self, context):
         obj = context.view_layer.objects.active
         if not obj:
-            self.report({'ERROR'}, "뷰포트에서 오브젝트를 선택해주세요.")
+            self.report({'ERROR'}, "Please select an object in the viewport.")
             return {'CANCELLED'}
 
         # 카테고리별 오브젝트 검증
         if self.anim_type == 'CAMERA':
             if obj.type != 'CAMERA':
-                self.report({'ERROR'}, "카메라 애니메이션(.anmca)은 'Camera' 오브젝트를 선택해야 합니다.")
+                self.report({'ERROR'}, "Camera animation (.anmca) requires a 'Camera' object to be selected.")
                 return {'CANCELLED'}
         else:
             if obj.type != 'ARMATURE':
-                self.report({'ERROR'}, f"{self.anim_type} 애니메이션은 캐릭터의 Armature(뼈대)를 선택해야 합니다.")
+                self.report({'ERROR'}, f"{self.anim_type} animation requires an 'Armature' object to be selected.")
                 return {'CANCELLED'}
 
         missing_bones = core.execute_import(self.filepath, obj, self.anim_type, self.apply_apose_offset)
 
         if missing_bones:
-            missing_msg = f"일부 뼈대를 찾지 못해 건너뛰었습니다 ({len(missing_bones)}개)."
+            missing_msg = f"Skipped {len(missing_bones)} missing bones."
             self.report({'WARNING'}, missing_msg)
-            print(f"[*] 누락 목록: {', '.join(missing_bones)}")
+            print(f"[*] Missing bones: {', '.join(missing_bones)}")
             
         self.report({'INFO'}, f"Polaris [{self.anim_type}] Animation Import DONE!")
         return {'FINISHED'}
@@ -122,9 +123,9 @@ class IMPORT_MT_polaris_tk(Menu):
         layout.operator(ImportPolarisFacial.bl_idname, text="Facial Animation (.anmfa)")
         layout.operator(ImportPolarisWing.bl_idname, text="Wing Animation (.anmwg)")
         layout.separator()
-        layout.operator(ImportPolarisCamera.bl_idname, text="Camera Animation(.anmca)")
+        layout.operator(ImportPolarisCamera.bl_idname, text="Camera Animation (.anmca)")
         layout.separator()
-        layout.operator(ImportPolarisExtra.bl_idname, text="Extra Animation(.anmex)")
+        layout.operator(ImportPolarisExtra.bl_idname, text="Extra Animation (.anmex)")
 
 def menu_func_import(self, context):
     global custom_icons
