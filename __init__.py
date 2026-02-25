@@ -1,16 +1,13 @@
 bl_info = {
     "name": "Polaris TKAnimation",
     "author": "UMIN",
-    "version": (0, 1, 0), 
+    "version": (0, 2, 0), 
     "blender": (3, 6, 0), 
     "location": "File > Import-Export",
-    "description": "Import Polaris (.bin) modular animation data.",
+    "description": "Import Polaris modular animation data by category.",
     "category": "Import-Export",
 }
 
-# =========================================================
-# [마법의 리로드 코드] 무조건 파일 '최상단'에 위치해야 합니다!
-# =========================================================
 if "bpy" in locals():
     import importlib
     importlib.reload(profiles)
@@ -19,67 +16,133 @@ else:
     import bpy
     from . import profiles
     from . import core
-# =========================================================
 
 import os
 import bpy.utils.previews
 from bpy_extras.io_utils import ImportHelper
-from bpy.props import StringProperty, EnumProperty, BoolProperty
-from bpy.types import Operator
+from bpy.props import StringProperty, BoolProperty
+from bpy.types import Operator, Menu
 
 custom_icons = None
 
-class ImportPolarisTKAnimation(Operator, ImportHelper):
-    bl_idname = "import_anim.polaris_tk"
-    bl_label = "Import Polaris TK Anim"
+# =========================================================
+# 1. 임포트 마스터 클래스 (중복 코드 방지용 Base Class)
+# =========================================================
+class ImportPolarisBase(ImportHelper):
     bl_options = {'REGISTER', 'UNDO'}
 
-    filename_ext = ".bin"
-    filter_glob: StringProperty(default="*.bin", options={'HIDDEN'})
-
-    anim_type: EnumProperty(
-        name="Animation Type",
-        description="Select the type of animation to apply the correct bone profiles",
-        items=(
-            ('FULLBODY', "Fullbody", "전신 애니메이션 (Spine, Legs, Arms)"),
-            ('HAND', "Hand", "손가락 전용 애니메이션"),
-            ('FACIAL', "Facial", "얼굴 표정 애니메이션"),
-            ('WING', "Wing", "날개 및 특수 본 애니메이션"),
-            ('CAMERA', "Camera", "카메라 애니메이션"),
-            ('EXTRA', "Extra", "기타 엑스트라 애니메이션"),
-        ),
-        default='FULLBODY',
-    )
-
     apply_apose_offset: BoolProperty(
-        name="ImportToPolaris(A-Pose Base)",
+        name="Apply A-Pose Offset",
         description="원본(A-Pose) 뼈대에 T-Pose 애니메이션을 맞추기 위해 관절에 추가 회전 오프셋을 적용합니다.",
         default=True,
     )
 
     def execute(self, context):
         obj = context.view_layer.objects.active
-        if not obj or obj.type != 'ARMATURE':
-            self.report({'ERROR'}, "뷰포트에서 캐릭터의 Armature(뼈대)를 선택해주세요.")
+        if not obj:
+            self.report({'ERROR'}, "뷰포트에서 오브젝트를 선택해주세요.")
             return {'CANCELLED'}
 
-        # 이제 core가 완벽하게 인식됩니다!
+        # 카테고리별 오브젝트 검증
+        if self.anim_type == 'CAMERA':
+            if obj.type != 'CAMERA':
+                self.report({'ERROR'}, "카메라 애니메이션(.anmca)은 'Camera' 오브젝트를 선택해야 합니다.")
+                return {'CANCELLED'}
+        else:
+            if obj.type != 'ARMATURE':
+                self.report({'ERROR'}, f"{self.anim_type} 애니메이션은 캐릭터의 Armature(뼈대)를 선택해야 합니다.")
+                return {'CANCELLED'}
+
         missing_bones = core.execute_import(self.filepath, obj, self.anim_type, self.apply_apose_offset)
 
         if missing_bones:
-            missing_msg = f"일부 뼈대를 찾지 못해 건너뛰었습니다 ({len(missing_bones)}개). 시스템 콘솔을 확인하세요."
+            missing_msg = f"일부 뼈대를 찾지 못해 건너뛰었습니다 ({len(missing_bones)}개)."
             self.report({'WARNING'}, missing_msg)
-            print(f"[*] 미구현/누락 뼈대 목록: {', '.join(missing_bones)}")
+            print(f"[*] 누락 목록: {', '.join(missing_bones)}")
             
         self.report({'INFO'}, f"Polaris [{self.anim_type}] Animation Import DONE!")
         return {'FINISHED'}
 
+# =========================================================
+# 2. 카테고리별 개별 임포터 (확장자 필터링)
+# =========================================================
+class ImportPolarisFullbody(Operator, ImportPolarisBase):
+    bl_idname = "import_anim.polaris_fullbody"
+    bl_label = "Import Fullbody (.bin)"
+    filename_ext = ".bin"
+    filter_glob: StringProperty(default="*.bin", options={'HIDDEN'})
+    anim_type = 'FULLBODY'
+
+class ImportPolarisHand(Operator, ImportPolarisBase):
+    bl_idname = "import_anim.polaris_hand"
+    bl_label = "Import Hand (.anmhd)"
+    filename_ext = ".anmhd"
+    filter_glob: StringProperty(default="*.anmhd", options={'HIDDEN'})
+    anim_type = 'HAND'
+
+class ImportPolarisFacial(Operator, ImportPolarisBase):
+    bl_idname = "import_anim.polaris_facial"
+    bl_label = "Import Facial (.anmfa)"
+    filename_ext = ".anmfa"
+    filter_glob: StringProperty(default="*.anmfa", options={'HIDDEN'})
+    anim_type = 'FACIAL'
+
+class ImportPolarisWing(Operator, ImportPolarisBase):
+    bl_idname = "import_anim.polaris_wing"
+    bl_label = "Import Wing (.anmwg)"
+    filename_ext = ".anmwg"
+    filter_glob: StringProperty(default="*.anmwg", options={'HIDDEN'})
+    anim_type = 'WING'
+
+class ImportPolarisCamera(Operator, ImportPolarisBase):
+    bl_idname = "import_anim.polaris_camera"
+    bl_label = "Import Camera (.anmca)"
+    filename_ext = ".anmca"
+    filter_glob: StringProperty(default="*.anmca", options={'HIDDEN'})
+    anim_type = 'CAMERA'
+
+class ImportPolarisExtra(Operator, ImportPolarisBase):
+    bl_idname = "import_anim.polaris_extra"
+    bl_label = "Import Extra (.anmex)"
+    filename_ext = ".anmex"
+    filter_glob: StringProperty(default="*.anmex", options={'HIDDEN'})
+    anim_type = 'EXTRA'
+
+# =========================================================
+# 3. UI 서브 메뉴 구성 (깔끔한 정리)
+# =========================================================
+class IMPORT_MT_polaris_tk(Menu):
+    bl_idname = "IMPORT_MT_polaris_tk"
+    bl_label = "Polaris TK Animation"
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator(ImportPolarisFullbody.bl_idname, text="Fullbody Animation (.bin)")
+        layout.operator(ImportPolarisHand.bl_idname, text="Hand Animation (.anmhd)")
+        layout.operator(ImportPolarisFacial.bl_idname, text="Facial Animation (.anmfa)")
+        layout.operator(ImportPolarisWing.bl_idname, text="Wing Animation (.anmwg)")
+        layout.separator()
+        layout.operator(ImportPolarisCamera.bl_idname, text="Camera Animation(.anmca)")
+        layout.separator()
+        layout.operator(ImportPolarisExtra.bl_idname, text="Extra Animation(.anmex)")
+
 def menu_func_import(self, context):
     global custom_icons
-    if custom_icons and "polaris_logo" in custom_icons:
-        self.layout.operator(ImportPolarisTKAnimation.bl_idname, text="Polaris TK Animation (.bin)", icon_value=custom_icons["polaris_logo"].icon_id)
-    else:
-        self.layout.operator(ImportPolarisTKAnimation.bl_idname, text="Polaris TK Animation (.bin)", icon='ACTION')
+    icon_id = custom_icons["polaris_logo"].icon_id if custom_icons and "polaris_logo" in custom_icons else 0
+    self.layout.menu(IMPORT_MT_polaris_tk.bl_idname, icon_value=icon_id)
+
+# =========================================================
+# 4. 등록 (Register)
+# =========================================================
+classes = (
+    ImportPolarisFullbody,
+    ImportPolarisHand,
+    ImportPolarisFacial,
+    ImportPolarisWing,
+    ImportPolarisCamera,
+    ImportPolarisExtra,
+    IMPORT_MT_polaris_tk,
+)
 
 def register():
     global custom_icons
@@ -89,10 +152,9 @@ def register():
     
     if os.path.exists(icon_path):
         custom_icons.load("polaris_logo", icon_path, 'IMAGE')
-    else:
-        print(f"[Polaris TK] 커스텀 아이콘을 찾을 수 없습니다: {icon_path}")
         
-    bpy.utils.register_class(ImportPolarisTKAnimation)
+    for cls in classes:
+        bpy.utils.register_class(cls)
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
 
 def unregister():
@@ -100,7 +162,8 @@ def unregister():
     if custom_icons is not None:
         bpy.utils.previews.remove(custom_icons)
         
-    bpy.utils.unregister_class(ImportPolarisTKAnimation)
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
 
 if __name__ == "__main__":

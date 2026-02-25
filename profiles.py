@@ -95,11 +95,35 @@ FULLBODY_GROUPS = {
 }
 
 # =======================================================
-# 2. 다른 카테고리 프로필 준비 (추후 디버깅하며 채워넣기)
+# 2. HAND (손가락) 프로필
 # =======================================================
 HAND_ROOTS = set()
-HAND_GROUPS = {}
 
+HAND_GROUPS = {
+    "HAND_ALL_TEMP": {
+        "bones": {
+            "L_Index0", "L_Index1", "L_Index2", "L_Index3",
+            "L_Middle0", "L_Middle1", "L_Middle2", "L_Middle3",
+            "L_Pinky0", "L_Pinky1", "L_Pinky2", "L_Pinky3",
+            "L_Ring0", "L_Ring1", "L_Ring2", "L_Ring3",
+            "L_Thumb0", "L_Thumb1", "L_Thumb2",
+            "R_Index0", "R_Index1", "R_Index2", "R_Index3",
+            "R_Middle0", "R_Middle1", "R_Middle2", "R_Middle3",
+            "R_Pinky0", "R_Pinky1", "R_Pinky2", "R_Pinky3",
+            "R_Ring0", "R_Ring1", "R_Ring2", "R_Ring3",
+            "R_Thumb0", "R_Thumb1", "R_Thumb2"
+        },
+        "basis": (0, 0, 90),
+        "flip": False,
+        "offset": (0, 0, 0), 
+        "loc_map": ("x", "y", "z"),
+        "scale_div": 100.0
+    }
+}
+
+# =======================================================
+# 3. 다른 카테고리 프로필 준비 (추후 디버깅하며 채워넣기)
+# =======================================================
 FACIAL_ROOTS = set()
 FACIAL_GROUPS = {}
 
