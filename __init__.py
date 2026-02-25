@@ -31,7 +31,6 @@ custom_icons = None
 class ImportPolarisBase(ImportHelper):
     bl_options = {'REGISTER', 'UNDO'}
 
-    # 💡 옵션 이름과 설명 영문화. 기본값은 True 유지.
     apply_apose_offset: BoolProperty(
         name="Import to Polaris Armature",
         description="Applies A-Pose offsets suitable for Polaris Armature.",
@@ -44,7 +43,6 @@ class ImportPolarisBase(ImportHelper):
             self.report({'ERROR'}, "Please select an object in the viewport.")
             return {'CANCELLED'}
 
-        # 카테고리별 오브젝트 검증
         if self.anim_type == 'CAMERA':
             if obj.type != 'CAMERA':
                 self.report({'ERROR'}, "Camera animation (.anmca) requires a 'Camera' object to be selected.")
@@ -54,7 +52,9 @@ class ImportPolarisBase(ImportHelper):
                 self.report({'ERROR'}, f"{self.anim_type} animation requires an 'Armature' object to be selected.")
                 return {'CANCELLED'}
 
-        missing_bones = core.execute_import(self.filepath, obj, self.anim_type, self.apply_apose_offset)
+        # 💡 Facial 클래스에만 존재하는 include_fullbody_dummy 값을 안전하게 가져옴 (없으면 False)
+        include_dummy = getattr(self, "include_fullbody_dummy", False)
+        missing_bones = core.execute_import(self.filepath, obj, self.anim_type, self.apply_apose_offset, include_dummy)
 
         if missing_bones:
             missing_msg = f"Skipped {len(missing_bones)} missing bones."
@@ -65,7 +65,7 @@ class ImportPolarisBase(ImportHelper):
         return {'FINISHED'}
 
 # =========================================================
-# 2. 카테고리별 개별 임포터 (확장자 필터링)
+# 2. 카테고리별 개별 임포터
 # =========================================================
 class ImportPolarisFullbody(Operator, ImportPolarisBase):
     bl_idname = "import_anim.polaris_fullbody"
@@ -88,12 +88,19 @@ class ImportPolarisFacial(Operator, ImportPolarisBase):
     filter_glob: StringProperty(default="*.anmfa", options={'HIDDEN'})
     anim_type = 'FACIAL'
 
-class ImportPolarisWing(Operator, ImportPolarisBase):
-    bl_idname = "import_anim.polaris_wing"
-    bl_label = "Import Wing (.anmwg)"
-    filename_ext = ".anmwg"
-    filter_glob: StringProperty(default="*.anmwg", options={'HIDDEN'})
-    anim_type = 'WING'
+    # 💡 Facial 임포트 창에서만 나타나는 전용 체크박스 추가
+    include_fullbody_dummy: BoolProperty(
+        name="Include fullbody animation(dummy data)",
+        description="Import fullbody bones (Spine, Head, etc.) included in the facial animation.",
+        default=False,
+    )
+
+class ImportPolarisSwing(Operator, ImportPolarisBase):
+    bl_idname = "import_anim.polaris_swing"
+    bl_label = "Import Swing (.anmsw)"
+    filename_ext = ".anmsw"
+    filter_glob: StringProperty(default="*.anmsw", options={'HIDDEN'})
+    anim_type = 'SWING'
 
 class ImportPolarisCamera(Operator, ImportPolarisBase):
     bl_idname = "import_anim.polaris_camera"
@@ -110,7 +117,7 @@ class ImportPolarisExtra(Operator, ImportPolarisBase):
     anim_type = 'EXTRA'
 
 # =========================================================
-# 3. UI 서브 메뉴 구성 (깔끔한 정리)
+# 3. UI 서브 메뉴 구성
 # =========================================================
 class IMPORT_MT_polaris_tk(Menu):
     bl_idname = "IMPORT_MT_polaris_tk"
@@ -121,7 +128,7 @@ class IMPORT_MT_polaris_tk(Menu):
         layout.operator(ImportPolarisFullbody.bl_idname, text="Fullbody Animation (.bin)")
         layout.operator(ImportPolarisHand.bl_idname, text="Hand Animation (.anmhd)")
         layout.operator(ImportPolarisFacial.bl_idname, text="Facial Animation (.anmfa)")
-        layout.operator(ImportPolarisWing.bl_idname, text="Wing Animation (.anmwg)")
+        layout.operator(ImportPolarisSwing.bl_idname, text="Swing Animation (.anmsw)")
         layout.separator()
         layout.operator(ImportPolarisCamera.bl_idname, text="Camera Animation (.anmca)")
         layout.separator()
@@ -132,14 +139,11 @@ def menu_func_import(self, context):
     icon_id = custom_icons["polaris_logo"].icon_id if custom_icons and "polaris_logo" in custom_icons else 0
     self.layout.menu(IMPORT_MT_polaris_tk.bl_idname, icon_value=icon_id)
 
-# =========================================================
-# 4. 등록 (Register)
-# =========================================================
 classes = (
     ImportPolarisFullbody,
     ImportPolarisHand,
     ImportPolarisFacial,
-    ImportPolarisWing,
+    ImportPolarisSwing,
     ImportPolarisCamera,
     ImportPolarisExtra,
     IMPORT_MT_polaris_tk,

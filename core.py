@@ -38,7 +38,8 @@ class BitReader:
             
         return value
 
-def execute_import(filepath, obj, anim_type, apply_apose=False): 
+# 💡 include_dummy 파라미터 추가
+def execute_import(filepath, obj, anim_type, apply_apose=False, include_dummy=False): 
     if not obj.animation_data:
         obj.animation_data_create()
     
@@ -48,8 +49,17 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
     action = obj.animation_data.action
     target_mask = CATEGORY_MASKS.get(anim_type)
 
-    # 💡 [핵심] Hand 애니메이션 파일 내부를 훑어보고 타겟 마스크를 좌/우로 능동 분리!
-    if anim_type == 'HAND':
+    # 💡 [핵심] 체크박스 값에 따른 Facial 마스크 동적 할당
+    if anim_type == 'FACIAL':
+        from .profiles import MASK_FACIAL_EXCLUSIVE, MASK_FACIAL_DUMMY
+        if include_dummy:
+            target_mask = MASK_FACIAL_EXCLUSIVE.union(MASK_FACIAL_DUMMY)
+            print("[*] Facial animation: Including fullbody dummy bones.")
+        else:
+            target_mask = MASK_FACIAL_EXCLUSIVE
+            print("[*] Facial animation: Excluding fullbody dummy bones.")
+
+    elif anim_type == 'HAND':
         has_l_hand = False
         has_r_hand = False
         with open(filepath, 'rb') as f:
@@ -72,14 +82,13 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
         from .profiles import MASK_HAND_L, MASK_HAND_R
         if has_l_hand and not has_r_hand:
             target_mask = MASK_HAND_L
-            print("[*] 왼손 애니메이션 감지: 왼쪽 손가락 키프레임만 덮어씁니다.")
+            print("[*] Left Hand animation detected: Only overwriting left hand keyframes.")
         elif has_r_hand and not has_l_hand:
             target_mask = MASK_HAND_R
-            print("[*] 오른손 애니메이션 감지: 오른쪽 손가락 키프레임만 덮어씁니다.")
+            print("[*] Right Hand animation detected: Only overwriting right hand keyframes.")
         else:
             target_mask = MASK_HAND_L.union(MASK_HAND_R)
 
-    # 마스크에 해당하는 뼈대의 F-Curve만 골라서 삭제 (나머지 뼈대 모션 보존)
     if action and target_mask:
         for fcurve in list(action.fcurves):
             match = re.search(r'pose\.bones\["([^"]+)"\]', fcurve.data_path)
@@ -88,16 +97,12 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
                 if bone_name in target_mask:
                     action.fcurves.remove(fcurve)
     elif action and not target_mask and anim_type != 'CAMERA':
-        # 마스크가 지정되지 않은 예전 방식
         for fcurve in list(action.fcurves):
             action.fcurves.remove(fcurve)
 
     file_size = os.path.getsize(filepath)
     missing_bones = [] 
 
-    # =======================================================
-    # 🎥 [카메라] 애니메이션
-    # =======================================================
     if anim_type == 'CAMERA':
         with open(filepath, 'rb') as f:
             f.seek(0x98)
@@ -156,7 +161,6 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
                     
         return missing_bones
 
-    # 기본 포즈(Rest) 초기화도 현재 마스크에 해당하는 뼈대만 수행
     for pbone in obj.pose.bones:
         if target_mask is None or pbone.name in target_mask:
             pbone.location = (0, 0, 0)
@@ -201,7 +205,6 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
                 missing_bones.append(bone_name)
                 continue
             
-            # 현재 마스크에 포함되지 않은 뼈대 데이터는 읽지 않고 완전히 스킵
             if target_mask is not None and bone_name not in target_mask:
                 continue
 
