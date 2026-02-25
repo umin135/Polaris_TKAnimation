@@ -3,7 +3,8 @@ import struct
 import mathutils
 import math
 import os
-from .profiles import PROFILE_REGISTRY, DEFAULT_FALLBACK, APOSE_OFFSETS
+import re
+from .profiles import PROFILE_REGISTRY, DEFAULT_FALLBACK, APOSE_OFFSETS, CATEGORY_MASKS
 
 def read_uint32(f):
     data = f.read(4)
@@ -42,15 +43,61 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
         obj.animation_data_create()
     
     if not obj.animation_data.action:
-        obj.animation_data.action = bpy.data.actions.new(name=f"Polaris_{anim_type}_Action")
-    else:
-        action = obj.animation_data.action
-        for fcurve in action.fcurves:
+        obj.animation_data.action = bpy.data.actions.new(name="Polaris_Action")
+    
+    action = obj.animation_data.action
+    target_mask = CATEGORY_MASKS.get(anim_type)
+
+    # 💡 [핵심] Hand 애니메이션 파일 내부를 훑어보고 타겟 마스크를 좌/우로 능동 분리!
+    if anim_type == 'HAND':
+        has_l_hand = False
+        has_r_hand = False
+        with open(filepath, 'rb') as f:
+            f.seek(0x94)
+            peek_bone_count = read_uint32(f)
+            peek_offsets = []
+            for i in range(peek_bone_count):
+                f.seek(0x98 + (i * 4))
+                curr = f.tell()
+                peek_offsets.append(curr + read_uint32(f))
+            
+            for a_off in peek_offsets:
+                f.seek(a_off + 0x14)
+                n_len = read_uint32(f)
+                b_name = f.read(n_len).decode('utf-8', errors='ignore').strip('\x00')
+                if b_name.startswith('L_'): has_l_hand = True
+                if b_name.startswith('R_'): has_r_hand = True
+                if has_l_hand and has_r_hand: break
+        
+        from .profiles import MASK_HAND_L, MASK_HAND_R
+        if has_l_hand and not has_r_hand:
+            target_mask = MASK_HAND_L
+            print("[*] 왼손 애니메이션 감지: 왼쪽 손가락 키프레임만 덮어씁니다.")
+        elif has_r_hand and not has_l_hand:
+            target_mask = MASK_HAND_R
+            print("[*] 오른손 애니메이션 감지: 오른쪽 손가락 키프레임만 덮어씁니다.")
+        else:
+            target_mask = MASK_HAND_L.union(MASK_HAND_R)
+
+    # 마스크에 해당하는 뼈대의 F-Curve만 골라서 삭제 (나머지 뼈대 모션 보존)
+    if action and target_mask:
+        for fcurve in list(action.fcurves):
+            match = re.search(r'pose\.bones\["([^"]+)"\]', fcurve.data_path)
+            if match:
+                bone_name = match.group(1)
+                if bone_name in target_mask:
+                    action.fcurves.remove(fcurve)
+    elif action and not target_mask and anim_type != 'CAMERA':
+        # 마스크가 지정되지 않은 예전 방식
+        for fcurve in list(action.fcurves):
             action.fcurves.remove(fcurve)
 
     file_size = os.path.getsize(filepath)
     missing_bones = [] 
 
+    # =======================================================
+    # 🎥 [카메라] 애니메이션
+    # =======================================================
     if anim_type == 'CAMERA':
         with open(filepath, 'rb') as f:
             f.seek(0x98)
@@ -109,14 +156,13 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
                     
         return missing_bones
 
-    # =======================================================
-    # 🏃‍♂️ [캐릭터 뼈대] 일반 & 가변 비트 압축 처리
-    # =======================================================
+    # 기본 포즈(Rest) 초기화도 현재 마스크에 해당하는 뼈대만 수행
     for pbone in obj.pose.bones:
-        pbone.location = (0, 0, 0)
-        pbone.rotation_quaternion = (1, 0, 0, 0)
-        pbone.rotation_euler = (0, 0, 0)
-        pbone.scale = (1, 1, 1)
+        if target_mask is None or pbone.name in target_mask:
+            pbone.location = (0, 0, 0)
+            pbone.rotation_quaternion = (1, 0, 0, 0)
+            pbone.rotation_euler = (0, 0, 0)
+            pbone.scale = (1, 1, 1)
 
     root_bones, target_groups = PROFILE_REGISTRY.get(anim_type, (set(), {}))
     do_apose_correction = apply_apose and anim_type in ('FULLBODY', 'EXTRA')
@@ -154,7 +200,11 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
             if bone_name not in obj.pose.bones:
                 missing_bones.append(bone_name)
                 continue
-                
+            
+            # 현재 마스크에 포함되지 않은 뼈대 데이터는 읽지 않고 완전히 스킵
+            if target_mask is not None and bone_name not in target_mask:
+                continue
+
             pbone = obj.pose.bones[bone_name]
             pbone.rotation_mode = 'QUATERNION'
             
@@ -195,9 +245,6 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
             C_mat = mathutils.Euler((math.radians(rx), math.radians(ry), math.radians(rz)), 'XYZ').to_matrix().to_4x4()
             C_inv = C_mat.inverted()
 
-            # ---------------------------------------------------
-            # 🎯 1. Key-framed (가변 비트 스트림) 압축 애니메이션
-            # ---------------------------------------------------
             if is_keyframed:
                 f.seek(final_c_start)
                 header_chunk = f.read(16)
@@ -209,9 +256,11 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
                 channels_info = []
                 f.seek(final_c_start + 0x10)
                 for _ in range(num_tracks):
-                    # 💡 [버그 픽스 1] 4바이트 c_idx를 정확히 읽어서, 채널의 '진짜 위치'를 파악합니다!
                     c_min, c_max, c_bits, c_idx = struct.unpack('<ffII', f.read(16))
-                    if c_bits > 32: c_bits = 0
+                    if abs(c_max - c_min) < 0.000001:
+                        c_bits = 0
+                    elif c_bits > 32: 
+                        c_bits = 0
                     channels_info.append({"min": c_min, "max": c_max, "bits": c_bits, "idx": c_idx})
                 
                 f.seek(final_c_start + base_frame_offset)
@@ -221,35 +270,33 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
                 bitstream_data = f.read(bone_frames * num_tracks * 4) 
                 reader = BitReader(bitstream_data)
                 
-                # Qw(인덱스 6)가 트랙 목록에 있는지 미리 확인합니다.
                 has_qw = any(ch["idx"] == 6 for ch in channels_info)
                 
-                # 💡 [버그 픽스 2] 끊김 없이 매 프레임을 물 흐르듯 읽어냅니다!
-                for frame in range(bone_frames):
-                    comp = base_frame[:]
-                    
-                    for ch in channels_info:
-                        if ch["bits"] > 0:
+                decoded_tracks = {}
+                for idx, ch in enumerate(channels_info):
+                    decoded_tracks[idx] = []
+                    if ch["bits"] > 0:
+                        for _ in range(bone_frames):
                             raw = reader.read_bits(ch["bits"])
                             max_val = (1 << ch["bits"]) - 1
                             ratio = raw / float(max_val) if max_val > 0 else 0.0
-                            
-                            # 💡 [버그 픽스 3] 하드코딩이 아닌, 엔진이 지시한 진짜 인덱스에 값을 꽂습니다!
-                            comp[ch["idx"]] = ch["min"] + (ch["max"] - ch["min"]) * ratio
-                        else:
-                            comp[ch["idx"]] = ch["min"]
+                            decoded_tracks[idx].append(ch["min"] + (ch["max"] - ch["min"]) * ratio)
+                    else:
+                        for _ in range(bone_frames):
+                            decoded_tracks[idx].append(ch["min"])
+                
+                for frame in range(bone_frames):
+                    comp = base_frame[:]
+                    for idx, ch in enumerate(channels_info):
+                        comp[ch["idx"]] = decoded_tracks[idx][frame]
                             
                     sx, sy, sz = comp[0], comp[1], comp[2]
                     qx, qy, qz = comp[3], comp[4], comp[5]
                     px, py, pz = comp[7], comp[8], comp[9]
                     
-                    # 💡 생략된 쿼터니언 W값의 완벽한 수학적 복원
                     if not has_qw:
                         dot_product = qx**2 + qy**2 + qz**2
-                        if dot_product < 1.0:
-                            qw = math.sqrt(1.0 - dot_product)
-                        else:
-                            qw = 0.0
+                        qw = math.sqrt(max(0.0, 1.0 - dot_product))
                     else:
                         qw = comp[6]
                     
@@ -281,9 +328,6 @@ def execute_import(filepath, obj, anim_type, apply_apose=False):
                     pbone.rotation_quaternion = b_rot
                     pbone.keyframe_insert(data_path="rotation_quaternion", frame=frame)
                     
-            # ---------------------------------------------------
-            # 🏃‍♂️ 2. 기존 Frame-by-frame (비압축) 애니메이션
-            # ---------------------------------------------------
             else:
                 f.seek(final_c_start)
                 for frame in range(bone_frames):
