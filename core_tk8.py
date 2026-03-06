@@ -4,100 +4,12 @@ import mathutils
 import math
 import os
 import re
-from .profiles import PROFILE_REGISTRY, DEFAULT_FALLBACK, APOSE_OFFSETS, CATEGORY_MASKS
+
+# 💡 반드시 profiles_tk8에서 가져와야 합니다.
+from .profiles_tk8 import PROFILE_REGISTRY, DEFAULT_FALLBACK, APOSE_OFFSETS, CATEGORY_MASKS
 
 halfpi = math.pi / 2
 
-# =======================================================
-# 🧮 TK7 회전(Rotation) 수학 유틸리티 (Kilo 스크립트 완벽 이식)
-# =======================================================
-def kilo_get_quat(roll, pitch, yaw):
-    qx = math.sin(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) - math.cos(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
-    qy = math.cos(roll/2) * math.sin(pitch/2) * math.cos(yaw/2) + math.sin(roll/2) * math.cos(pitch/2) * math.sin(yaw/2)
-    qz = math.cos(roll/2) * math.cos(pitch/2) * math.sin(yaw/2) - math.sin(roll/2) * math.sin(pitch/2) * math.cos(yaw/2)
-    qw = math.cos(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) + math.sin(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
-    return [qx, qy, qz, qw]
-
-def kilo_quat_to_mat(Q):
-    q0, q1, q2, q3 = Q[0], Q[1], Q[2], Q[3]
-    r00 = 2 * (q0 * q0 + q1 * q1) - 1
-    r01 = 2 * (q1 * q2 - q0 * q3)
-    r02 = 2 * (q1 * q3 + q0 * q2)
-    r10 = 2 * (q1 * q2 + q0 * q3)
-    r11 = 2 * (q0 * q0 + q2 * q2) - 1
-    r12 = 2 * (q2 * q3 - q0 * q1)
-    r20 = 2 * (q1 * q3 - q0 * q2)
-    r21 = 2 * (q2 * q3 + q0 * q1)
-    r22 = 2 * (q0 * q0 + q3 * q3) - 1
-    return [[r00, r01, r02], [r10, r11, r12], [r20, r21, r22]]
-
-def transpose_3x3(m):
-    return [
-        [m[0][0], m[1][0], m[2][0]],
-        [m[0][1], m[1][1], m[2][1]],
-        [m[0][2], m[1][2], m[2][2]]
-    ]
-
-def matmul_3x3(A, B):
-    return [
-        [sum(A[i][k] * B[k][j] for k in range(3)) for j in range(3)]
-        for i in range(3)
-    ]
-
-def clamp(num, min_value, max_value):
-    return max(min(num, max_value), min_value)
-
-def kilo_get_rot_mode1(te):
-    m11, m12, m13 = te[0][0], te[0][1], te[0][2]
-    m21, m22, m23 = te[1][0], te[1][1], te[1][2]
-    m31, m32, m33 = te[2][0], te[2][1], te[2][2]
-    x = math.asin( -clamp( m23, -1, 1 ) )
-    if abs( m23 ) < 0.9999999:
-        y = math.atan2( m13, m33 )
-        z = math.atan2( m21, m22 )
-    else:
-        y = math.atan2( -m31, m11 )
-        z = 0
-    return x, y, z
-
-def convertArmToBlenderXYZ(x, y, z):
-    orig_quat = kilo_get_quat(-halfpi, halfpi, 0)
-    orig_mat = kilo_quat_to_mat(orig_quat)
-    orig_mat_inv = transpose_3x3(orig_mat) # Rotation matrix inverse is transpose
-    
-    quat = kilo_get_quat(x, y, z)
-    mat = kilo_quat_to_mat(quat)
-    
-    res_mat = matmul_3x3(mat, orig_mat_inv)
-    rx, ry, rz = kilo_get_rot_mode1(res_mat)
-    
-    return -rz, ry, -rx
-
-def apply_tk7_axis_correction(b_id, x, y, z):
-    if b_id == 3: return (z, y, -x) # Base
-    elif b_id == 4: return (z - halfpi, y, -x) # Spine1
-    elif b_id == 5: return (z + halfpi, y, -x) # Hip
-    elif b_id == 7: return (z, y, -x) # Neck
-    elif b_id == 8: return (x, y - halfpi, z - halfpi) # Head
-    elif b_id == 9: # R_Shoulder
-        rx, ry, rz = convertArmToBlenderXYZ(x, y, z)
-        return (rx, ry, rz)
-    elif b_id == 10: return (-x - halfpi, -z, -y) # R_Arm
-    elif b_id == 11: return (-x, y, -z) # R_ForeArm
-    elif b_id == 12: return (x - halfpi, z, -y) # R_Hand
-    elif b_id == 13: # L_Shoulder
-        rx, ry, rz = convertArmToBlenderXYZ(x, y, z)
-        return (-rx, ry, rz + math.pi)
-    elif b_id == 14: return (x + halfpi, -z, y) # L_Arm
-    elif b_id == 15: return (x, y, z) # L_ForeArm
-    elif b_id == 16: return (-x + halfpi, -z, -y) # L_Hand
-    elif b_id in (17, 18, 19, 20, 21, 22): # Legs & Feet
-        return (z, y, -x)
-    return (x, y, z)
-
-# =======================================================
-# 🚀 메인 임포트 로직
-# =======================================================
 def read_uint32(f):
     data = f.read(4)
     if len(data) < 4: return 0
@@ -125,96 +37,21 @@ class BitReader:
             bits_read += bits_to_read_now
         return value
 
-def execute_import(filepath, obj, anim_type, apply_apose=False, include_dummy=False): 
+# 💡 함수 이름이 정확히 import_tk8_anim 이어야 합니다.
+def import_tk8_anim(filepath, obj, anim_type, apply_apose, include_dummy):
+    print(f"[*] Started TK8 Import Process: {filepath}")
     file_size = os.path.getsize(filepath)
-    
-    if anim_type.startswith('TK7_'):
-        print(f"[*] Started TK7 Import Process: {filepath}")
-        
-        with open(filepath, 'rb') as f:
-            magic = f.read(2)
-            if magic in (b'\x00\xC8', b'\x00\x64'): endian = '>'
-            elif magic in (b'\xC8\x00', b'\x64\x00'): endian = '<'
-            else: return []
-                
-            f.seek(0)
-            header = f.read(8)
-            sig, p_count, frame_offset = struct.unpack(endian + 'HHI', header)
-            
-            tk7_bones = {
-                0: "Top", 1: "Trans", 2: "HARA_ROT1", 3: "BASE",
-                4: "Spine1", 5: "Hip", 6: "Spine_Flex", 7: "Neck",
-                8: "Head", 9: "R_Shoulder", 10: "R_Arm", 11: "R_ForeArm",
-                12: "R_Hand", 13: "L_Shoulder", 14: "L_Arm", 15: "L_ForeArm",
-                16: "L_Hand", 17: "R_UpLeg", 18: "R_Leg", 19: "R_Foot",
-                20: "L_UpLeg", 21: "L_Leg", 22: "L_Foot"
-            }
-            missing_tk7_bones = []
-            
-            if sig in (0x00C8, 0xC800):
-                print(f"[*] TK7 FBF Format Detected (Big/Little Endian Safe)")
-                
-                f.seek(8)
-                bone_ids = [struct.unpack(endian + 'I', f.read(4))[0] for _ in range(p_count)]
-                
-                frame_size = p_count * 12 # FBF는 무조건 관절당 12바이트(X,Y,Z)
-                total_frames = (file_size - frame_offset) // frame_size
-                
-                f.seek(frame_offset)
-                
-                if not obj.animation_data: obj.animation_data_create()
-                if not obj.animation_data.action: obj.animation_data.action = bpy.data.actions.new(name="TK7_Action")
-                
-                bpy.context.scene.frame_start = 0
-                bpy.context.scene.frame_end = total_frames
-                
-                for frame in range(total_frames):
-                    raw_frame = f.read(frame_size)
-                    if len(raw_frame) < frame_size: break
-                    
-                    offset = 0
-                    for b_id in bone_ids:
-                        b_name = tk7_bones.get(b_id, f"Unknown_{b_id}")
-                        x, y, z = struct.unpack(endian + 'fff', raw_frame[offset:offset+12])
-                        offset += 12
-                            
-                        if b_name not in obj.pose.bones:
-                            if b_name not in missing_tk7_bones: missing_tk7_bones.append(b_name)
-                            continue
-                            
-                        pbone = obj.pose.bones[b_name]
-                        
-                        if b_id == 0: 
-                            pbone.location[0] += x / 1000.0
-                            pbone.location[2] += -z / 1000.0
-                            pbone.keyframe_insert(data_path="location", frame=frame)
-                        elif b_id == 1: 
-                            pbone.location = (x / 1000.0, (y / 1000.0) - 1.15, z / 1000.0)
-                            pbone.keyframe_insert(data_path="location", frame=frame)
-                        else:
-                            rx, ry, rz = apply_tk7_axis_correction(b_id, x, y, z)
-                            pbone.rotation_mode = 'XYZ'
-                            pbone.rotation_euler = (rx, ry, rz)
-                            pbone.keyframe_insert(data_path="rotation_euler", frame=frame)
-                            
-                print("[+] TK7 FBF Import Complete!")
-                return missing_tk7_bones
-            elif sig in (0x0064, 0x6400):
-                print("[!] TK7 KEF Format Detected. (Decoder logic will be injected here next!)")
-                return []
 
-    # =======================================================
-    # 🌟 철권 8 (Polaris) 기존 로직 유지
-    # =======================================================
     if not obj.animation_data:
         obj.animation_data_create()
     if not obj.animation_data.action:
         obj.animation_data.action = bpy.data.actions.new(name="Polaris_Action")
     action = obj.animation_data.action
+
     target_mask = CATEGORY_MASKS.get(anim_type)
 
     if anim_type == 'FACIAL':
-        from .profiles import MASK_FACIAL_EXCLUSIVE, MASK_FACIAL_DUMMY
+        from .profiles_tk8 import MASK_FACIAL_EXCLUSIVE, MASK_FACIAL_DUMMY
         if include_dummy:
             target_mask = MASK_FACIAL_EXCLUSIVE.union(MASK_FACIAL_DUMMY)
         else:
@@ -239,13 +76,10 @@ def execute_import(filepath, obj, anim_type, apply_apose=False, include_dummy=Fa
                 if b_name.startswith('R_'): has_r_hand = True
                 if has_l_hand and has_r_hand: break
         
-        from .profiles import MASK_HAND_L, MASK_HAND_R
-        if has_l_hand and not has_r_hand:
-            target_mask = MASK_HAND_L
-        elif has_r_hand and not has_l_hand:
-            target_mask = MASK_HAND_R
-        else:
-            target_mask = MASK_HAND_L.union(MASK_HAND_R)
+        from .profiles_tk8 import MASK_HAND_L, MASK_HAND_R
+        if has_l_hand and not has_r_hand: target_mask = MASK_HAND_L
+        elif has_r_hand and not has_l_hand: target_mask = MASK_HAND_R
+        else: target_mask = MASK_HAND_L.union(MASK_HAND_R)
 
     if action and target_mask:
         for fcurve in list(action.fcurves):
@@ -324,6 +158,7 @@ def execute_import(filepath, obj, anim_type, apply_apose=False, include_dummy=Fa
         first_c_ptr = read_uint32(f)
         f.seek(0x94)
         bone_count = read_uint32(f)
+        
         bone_offsets = []
         for i in range(bone_count):
             f.seek(0x98 + (i * 4))
@@ -340,6 +175,7 @@ def execute_import(filepath, obj, anim_type, apply_apose=False, include_dummy=Fa
             f.seek(curr + 0x10)
             rel_b_offset = read_uint32(f)
             block_b_offset = (curr + 0x10) + rel_b_offset - 8
+            
             f.seek(a_offset + 0x14)
             name_len = read_uint32(f)
             bone_name = f.read(name_len).decode('utf-8', errors='ignore').strip('\x00')
@@ -352,6 +188,7 @@ def execute_import(filepath, obj, anim_type, apply_apose=False, include_dummy=Fa
 
             pbone = obj.pose.bones[bone_name]
             pbone.rotation_mode = 'QUATERNION'
+            
             f.seek(block_b_offset + 0xC)
             indicator = read_uint32(f)
             f.seek(block_b_offset + 0x14)
@@ -393,6 +230,7 @@ def execute_import(filepath, obj, anim_type, apply_apose=False, include_dummy=Fa
                 base_frame_offset = struct.unpack('<H', header_chunk[4:6])[0]
                 bitstream_offset = struct.unpack('<I', header_chunk[8:12])[0]
                 num_tracks = (base_frame_offset - 0x10) // 16
+                
                 channels_info = []
                 f.seek(final_c_start + 0x10)
                 for _ in range(num_tracks):
@@ -406,9 +244,10 @@ def execute_import(filepath, obj, anim_type, apply_apose=False, include_dummy=Fa
                 f.seek(final_c_start + bitstream_offset)
                 bitstream_data = f.read(bone_frames * num_tracks * 4) 
                 reader = BitReader(bitstream_data)
-                has_qw = any(ch["idx"] == 6 for ch in channels_info)
                 
+                has_qw = any(ch["idx"] == 6 for ch in channels_info)
                 decoded_tracks = {}
+                
                 for idx, ch in enumerate(channels_info):
                     decoded_tracks[idx] = []
                     if ch["bits"] > 0:
@@ -438,8 +277,11 @@ def execute_import(filepath, obj, anim_type, apply_apose=False, include_dummy=Fa
                     
                     px, py, pz = px/scale_div, py/scale_div, pz/scale_div
                     if do_flip: py, qy = -py, -qy
+                    
                     loc_dict = {'x': px, 'y': py, 'z': pz, '-x': -px, '-y': -py, '-z': -pz}
-                    mapped_px, mapped_py, mapped_pz = loc_dict[mx], loc_dict[my], loc_dict[mz]
+                    mapped_px = loc_dict.get(mx, px)
+                    mapped_py = loc_dict.get(my, py)
+                    mapped_pz = loc_dict.get(mz, pz)
                         
                     anim_loc = mathutils.Vector((mapped_px, mapped_py, mapped_pz))
                     anim_quat = mathutils.Quaternion((qw, qx, qy, qz))
@@ -475,7 +317,9 @@ def execute_import(filepath, obj, anim_type, apply_apose=False, include_dummy=Fa
                     
                     if do_flip: py, qy = -py, -qy
                     loc_dict = {'x': px, 'y': py, 'z': pz, '-x': -px, '-y': -py, '-z': -pz}
-                    mapped_px, mapped_py, mapped_pz = loc_dict[mx], loc_dict[my], loc_dict[mz]
+                    mapped_px = loc_dict.get(mx, px)
+                    mapped_py = loc_dict.get(my, py)
+                    mapped_pz = loc_dict.get(mz, pz)
                         
                     anim_loc = mathutils.Vector((mapped_px, mapped_py, mapped_pz))
                     anim_quat = mathutils.Quaternion((qw, qx, qy, qz))

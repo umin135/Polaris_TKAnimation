@@ -3,7 +3,7 @@ import struct
 import mathutils
 import math
 import os
-from .profiles import PROFILE_REGISTRY, DEFAULT_FALLBACK, APOSE_OFFSETS, CATEGORY_MASKS
+from .profiles_tk8 import PROFILE_REGISTRY, DEFAULT_FALLBACK, APOSE_OFFSETS, CATEGORY_MASKS
 
 def execute_export(export_path, obj, anim_type, apply_apose=True, include_dummy=False):
     print(f"\n[*] Starting Polaris Export (From Scratch) for {anim_type}")

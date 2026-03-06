@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Polaris TKAnimation",
     "author": "UMIN",
-    "version": (0, 5, 0), 
+    "version": (0, 6, 0), 
     "blender": (3, 6, 0), 
     "location": "File > Import-Export",
     "description": "Import/Export Polaris & TK7 modular animation data.",
@@ -10,19 +10,23 @@ bl_info = {
 
 if "bpy" in locals():
     import importlib
-    importlib.reload(profiles)
-    importlib.reload(core)
-    importlib.reload(export_core) # 💡 새로운 export 모듈 로드
+    importlib.reload(profiles_tk8)
+    importlib.reload(profiles_tk7)
+    importlib.reload(core_tk8)
+    importlib.reload(core_tk7)
+    importlib.reload(export_core)
 else:
     import bpy
-    from . import profiles
-    from . import core
+    from . import profiles_tk8
+    from . import profiles_tk7
+    from . import core_tk8
+    from . import core_tk7
     from . import export_core
 
 import os
 import bpy.utils.previews
 from bpy_extras.io_utils import ImportHelper, ExportHelper
-from bpy.props import StringProperty, BoolProperty
+from bpy.props import StringProperty, BoolProperty, EnumProperty
 from bpy.types import Operator, Menu
 
 custom_icons = None
@@ -32,12 +36,25 @@ custom_icons = None
 # =========================================================
 class ImportPolarisBase(ImportHelper):
     bl_options = {'REGISTER', 'UNDO'}
-    apply_apose_offset: BoolProperty(name="Import to Polaris Armature", default=True)
+    
+    armature_format: EnumProperty(
+        name="Armature",
+        items=[
+            ('TK7', "TK7", "Import to Tekken 7 Armature"),
+            ('TK8', "TK8", "Import to Polaris (Tekken 8) Armature")
+        ],
+        default='TK8'
+    )
+    
     def execute(self, context):
         obj = context.view_layer.objects.active
         if not obj: return {'CANCELLED'}
         include_dummy = getattr(self, "include_fullbody_dummy", False)
-        core.execute_import(self.filepath, obj, self.anim_type, self.apply_apose_offset, include_dummy)
+        
+        # TK8 선택 시 A-Pose 보정 활성화
+        do_apose = (self.armature_format == 'TK8')
+        
+        core_tk8.import_tk8_anim(self.filepath, obj, self.anim_type, do_apose, include_dummy)
         return {'FINISHED'}
 
 class ImportPolarisFullbody(Operator, ImportPolarisBase): bl_idname = "import_anim.polaris_fullbody"; bl_label = "Import Fullbody (.bin)"; filename_ext = ".bin"; filter_glob: StringProperty(default="*.bin", options={'HIDDEN'}); anim_type = 'FULLBODY'
@@ -47,16 +64,34 @@ class ImportPolarisSwing(Operator, ImportPolarisBase): bl_idname = "import_anim.
 class ImportPolarisCamera(Operator, ImportPolarisBase): bl_idname = "import_anim.polaris_camera"; bl_label = "Import Camera (.anmca)"; filename_ext = ".anmca"; filter_glob: StringProperty(default="*.anmca", options={'HIDDEN'}); anim_type = 'CAMERA'
 class ImportPolarisExtra(Operator, ImportPolarisBase): bl_idname = "import_anim.polaris_extra"; bl_label = "Import Extra (.anmex)"; filename_ext = ".anmex"; filter_glob: StringProperty(default="*.anmex", options={'HIDDEN'}); anim_type = 'EXTRA'
 
+# =========================================================
+# 2. TK7 Import Classes
+# =========================================================
 class ImportTK7Fullbody(Operator, ImportHelper):
-    bl_idname = "import_anim.tk7_fullbody"; bl_label = "Import TK7 Fullbody (.bin)"; filename_ext = ".bin"; filter_glob: StringProperty(default="*.bin", options={'HIDDEN'})
-    apply_apose_offset: BoolProperty(name="Import to Polaris Armature", default=False)
+    bl_idname = "import_anim.tk7_fullbody"
+    bl_label = "Import TK7 Fullbody (.bin)"
+    filename_ext = ".bin"
+    filter_glob: StringProperty(default="*.bin", options={'HIDDEN'})
+    
+    armature_format: EnumProperty(
+        name="Armature",
+        items=[
+            ('TK7', "TK7", "Import to Tekken 7 Armature"),
+            ('TK8', "TK8", "Import to Polaris (Tekken 8) Armature")
+        ],
+        default='TK7'
+    )
+    
     def execute(self, context):
         obj = context.view_layer.objects.active
-        core.execute_import(self.filepath, obj, 'TK7_FULLBODY', self.apply_apose_offset, False)
+        if not obj: return {'CANCELLED'}
+        
+        do_apose = (self.armature_format == 'TK8')
+        core_tk7.import_tk7_anim(self.filepath, obj, 'TK7_FULLBODY', do_apose)
         return {'FINISHED'}
 
 # =========================================================
-# 2. Polaris (TK8) Export Classes (From Scratch)
+# 3. Polaris (TK8) Export Classes 
 # =========================================================
 class ExportPolarisBase(ExportHelper):
     bl_options = {'REGISTER'}
@@ -75,9 +110,7 @@ class ExportPolarisBase(ExportHelper):
         obj = context.view_layer.objects.active
         include_dummy = getattr(self, "include_fullbody_dummy", False)
         
-        # 템플릿 없이 export_core로 다이렉트 전달
         export_core.execute_export(self.filepath, obj, self.anim_type, self.apply_apose_offset, include_dummy)
-        
         self.report({'INFO'}, f"Polaris [{self.anim_type}] Export Completed! -> {os.path.basename(self.filepath)}")
         return {'FINISHED'}
 
@@ -88,7 +121,7 @@ class ExportPolarisSwing(Operator, ExportPolarisBase): bl_idname = "export_anim.
 class ExportPolarisExtra(Operator, ExportPolarisBase): bl_idname = "export_anim.polaris_extra"; bl_label = "Export Extra (.anmex)"; filename_ext = ".anmex"; filter_glob: StringProperty(default="*.anmex", options={'HIDDEN'}); anim_type = 'EXTRA'
 
 # =========================================================
-# 3. UI Menus
+# 4. UI Menus
 # =========================================================
 class IMPORT_MT_polaris_tk(Menu):
     bl_idname = "IMPORT_MT_polaris_tk"
