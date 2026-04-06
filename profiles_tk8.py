@@ -1,10 +1,49 @@
+# =======================================================
+# 완전히 무시할 본 목록
+# - Import: 키프레임 삽입 안 함
+# - Export: C-블록에 쓰지 않음 (템플릿 원본값 유지)
+# 절차적으로 엔진이 구동하거나 미사용으로 확인된 본을 여기에 추가
+# =======================================================
+IGNORE_BONES = {
+}
+
 DEFAULT_FALLBACK = {
     "basis": (0, 0, 90),
     "flip": False,
-    "offset": (0, 0, 0), 
+    "offset": (0, 0, 0),
     "loc_map": ("x", "y", "z"),
-    "scale_div": 100.0
+    "scale_div": 100.0,
+    # post_rot: import 후 b_rot에 우측 곱셈으로 추가 보정 (도 단위 XYZ 오일러)
+    # 좌표계가 아닌 로컬 보정이 필요할 때 사용. 기본값 (0,0,0) = 영향 없음
+    "post_rot": (0, 0, 0),
 }
+
+# =======================================================
+# ROOT MOTION 튜닝 파라미터
+# -------------------------------------------------------
+# 루트본(Trans, Top, Rot) 위치가 잘못됐을 때 여기만 수정.
+#
+# [loc_map] 엔진 축 3개 → Blender 축 매핑 (순서: X, Y, Z)
+#   선택지: "x" "-x" "y" "-y" "z" "-z"
+#   예) 앞뒤가 반대면 → "-y" 를 "y" 로 바꿔보세요
+#   예) 좌우가 반대면 → "-x" 를 "x" 로 바꿔보세요
+#   예) 좌우/앞뒤 축이 뒤바뀌면 → ("y", "x", "z") 식으로 순서를 교체
+#
+# [scale_div] 단위 보정
+#   100.0 → cm → m 변환 (일반 뼈 기본값)
+#   1.0   → 변환 없음 (루트본이 이미 다른 스케일인 경우)
+#
+# [basis] 좌표계 기저 회전 (도 단위, XYZ 오일러)
+#   (0,0,90) → Z축 90도 회전 (대부분의 뼈 기본값)
+#   회전 방향이 통째로 틀릴 때 수정
+#
+# [rot_offset] 루트본 회전에만 추가할 고정 오프셋 (도 단위)
+# =======================================================
+ROOT_MOTION_LOC_MAP   = ("x", "y", "z")   # ← 축 방향 문제시 수정
+ROOT_MOTION_SCALE     = 1.0                 # ← 스케일 문제시 수정
+ROOT_MOTION_BASIS     = (0, 0, 90)          # ← 회전 기저 문제시 수정
+ROOT_MOTION_FLIP      = False
+ROOT_MOTION_ROT_OFFSET = (0, 0, 0)
 
 # =======================================================
 # 1. FULLBODY (전신) 프로필
@@ -12,9 +51,24 @@ DEFAULT_FALLBACK = {
 FULLBODY_ROOTS = {"Top", "Trans"}
 FULLBODY_GROUPS = {
     "ROOT_MOTION": {
-        "bones": {"Top", "Trans", "Rot"}, 
-        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0), "loc_map": ("-x", "y", "z"), "scale_div": 1.0 
+        "bones": {"Top", "Trans", "Rot"},
+        "basis":     ROOT_MOTION_BASIS,
+        "flip":      ROOT_MOTION_FLIP,
+        "offset":    ROOT_MOTION_ROT_OFFSET,
+        "loc_map":   ROOT_MOTION_LOC_MAP,
+        "scale_div": ROOT_MOTION_SCALE,
     },
+    "Root2": {
+        "bones": {"HARA_ROT1"},
+        "basis": (0, 0, 90),
+        "flip": False,
+        "offset": (0, 0, 0),
+        "post_rot": (0, 0, 180),
+        "loc_map": ("x", "y", "z"),
+        "scale_div": 100.0
+    },
+
+
     "GROUP_A": { 
         "bones": {
             "Spine1", "Spine2", "Neck", "Head", "R_UpperArm", "PMP_R_UpperArm", "R_LowerArm", "PMP_R_LowerArm", "R_LowerLeg", 
@@ -25,10 +79,20 @@ FULLBODY_GROUPS = {
         "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0
     },
     "GROUP_B": { 
-        "bones": {"R_Shoulder"}, "basis": (0, 0, 90), "flip": False, "offset": (0, -90, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+        "bones": {"R_Shoulder"}, 
+        "basis": (0, -90, 90), 
+        "flip": False, 
+        "offset": (0, -90, 0), 
+        "loc_map": ("x", "y", "z"), 
+        "scale_div": 100.0
     },
     "GROUP_C": { 
-        "bones": {"L_Shoulder"}, "basis": (0, 0, 90), "flip": False, "offset": (0, 90, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+        "bones": {"L_Shoulder"}, 
+        "basis": (0, 90, 90), 
+        "flip": False, 
+        "offset": (0, 90, 0), 
+        "loc_map": ("x", "y", "z"), 
+        "scale_div": 100.0
     },
     "GROUP_D": { 
         "bones": {"R_UpperLeg", "L_UpperLeg"}, "basis": (0, 0, -90), "flip": False, "offset": (0, 0, 180), "loc_map": ("x", "y", "z"), "scale_div": 100.0
@@ -46,7 +110,7 @@ FULLBODY_GROUPS = {
         "bones": {"Hip"}, "basis": (0, 0, 90), "flip": False, "offset": (0, -90, -90), "loc_map": ("x", "y", "z"), "scale_div": 100.0
     },
     "GROUP_BODY_AUX": { 
-        "bones": {"HARA_ROT1", "MUKI", "MUNE_jnt", "KOSI_NULL2", "Neck2", "BASE", "C_Leg"}, "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+        "bones": {"MUKI", "MUNE_jnt", "KOSI_NULL2", "Neck2", "BASE", "C_Leg"}, "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0
     },
     "GROUP_PROPS_PHYSICS": {
         "bones": {

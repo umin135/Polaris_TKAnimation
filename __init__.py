@@ -24,6 +24,8 @@ else:
     from . import export_core
 
 import os
+import shutil
+import tempfile
 import bpy.utils.previews
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 from bpy.props import StringProperty, BoolProperty, EnumProperty
@@ -36,25 +38,12 @@ custom_icons = None
 # =========================================================
 class ImportPolarisBase(ImportHelper):
     bl_options = {'REGISTER', 'UNDO'}
-    
-    armature_format: EnumProperty(
-        name="Armature",
-        items=[
-            ('TK7', "TK7", "Import to Tekken 7 Armature"),
-            ('TK8', "TK8", "Import to Polaris (Tekken 8) Armature")
-        ],
-        default='TK8'
-    )
-    
+
     def execute(self, context):
         obj = context.view_layer.objects.active
         if not obj: return {'CANCELLED'}
         include_dummy = getattr(self, "include_fullbody_dummy", False)
-        
-        # TK8 선택 시 A-Pose 보정 활성화
-        do_apose = (self.armature_format == 'TK8')
-        
-        core_tk8.import_tk8_anim(self.filepath, obj, self.anim_type, do_apose, include_dummy)
+        core_tk8.import_tk8_anim(self.filepath, obj, self.anim_type, True, include_dummy)
         return {'FINISHED'}
 
 class ImportPolarisFullbody(Operator, ImportPolarisBase): bl_idname = "import_anim.polaris_fullbody"; bl_label = "Import Fullbody (.bin)"; filename_ext = ".bin"; filter_glob: StringProperty(default="*.bin", options={'HIDDEN'}); anim_type = 'FULLBODY'
@@ -121,7 +110,57 @@ class ExportPolarisSwing(Operator, ExportPolarisBase): bl_idname = "export_anim.
 class ExportPolarisExtra(Operator, ExportPolarisBase): bl_idname = "export_anim.polaris_extra"; bl_label = "Export Extra (.anmex)"; filename_ext = ".anmex"; filter_glob: StringProperty(default="*.anmex", options={'HIDDEN'}); anim_type = 'EXTRA'
 
 # =========================================================
-# 4. UI Menus
+# 4. N-Panel Sidebar
+# =========================================================
+def _open_template_copy(operator, filename):
+    template_path = os.path.join(os.path.dirname(__file__), "template", filename)
+    if not os.path.exists(template_path):
+        operator.report({'ERROR'}, f"Template not found: {template_path}")
+        return {'CANCELLED'}
+    tmp_dir = tempfile.mkdtemp(prefix="polaris_")
+    tmp_path = os.path.join(tmp_dir, filename)
+    shutil.copy2(template_path, tmp_path)
+    bpy.ops.wm.open_mainfile(filepath=tmp_path)
+    return {'FINISHED'}
+
+class POLARIS_OT_open_template(Operator):
+    bl_idname = "polaris.open_template_blend"
+    bl_label = "Open Polaris Blend (without IK)"
+    bl_description = "Open the bundled Polaris template .blend file (no IK rig)"
+
+    def execute(self, context):
+        return _open_template_copy(self, "polaris_template.blend")
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+class POLARIS_OT_open_template_ik(Operator):
+    bl_idname = "polaris.open_template_blend_ik"
+    bl_label = "Open Polaris Blend (with IK)"
+    bl_description = "Open the bundled Polaris IK template .blend file"
+
+    def execute(self, context):
+        return _open_template_copy(self, "polaris_template_IK.blend")
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+class POLARIS_PT_sidebar(bpy.types.Panel):
+    bl_label = "Polaris TK Anim"
+    bl_idname = "POLARIS_PT_sidebar"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "Polaris"
+
+    def draw(self, context):
+        layout = self.layout
+        global custom_icons
+        icon_id = custom_icons["polaris_logo"].icon_id if custom_icons and "polaris_logo" in custom_icons else 0
+        layout.operator(POLARIS_OT_open_template.bl_idname, icon_value=icon_id)
+        layout.operator(POLARIS_OT_open_template_ik.bl_idname, icon_value=icon_id)
+
+# =========================================================
+# 5. UI Menus
 # =========================================================
 class IMPORT_MT_polaris_tk(Menu):
     bl_idname = "IMPORT_MT_polaris_tk"
@@ -129,19 +168,22 @@ class IMPORT_MT_polaris_tk(Menu):
     def draw(self, context):
         layout = self.layout
         layout.operator(ImportPolarisFullbody.bl_idname, text="Fullbody Animation (.bin)")
-        layout.operator(ImportPolarisHand.bl_idname, text="Hand Animation (.anmhd)")
-        layout.operator(ImportPolarisFacial.bl_idname, text="Facial Animation (.anmfa)")
-        layout.operator(ImportPolarisSwing.bl_idname, text="Swing Animation (.anmsw)")
-        layout.separator()
-        layout.operator(ImportPolarisCamera.bl_idname, text="Camera Animation (.anmca)")
-        layout.separator()
-        layout.operator(ImportPolarisExtra.bl_idname, text="Extra Animation (.anmex)")
+        # 아래 항목들은 임시 비활성화 (로직 유지, UI만 숨김)
+        # layout.operator(ImportPolarisHand.bl_idname, text="Hand Animation (.anmhd)")
+        # layout.operator(ImportPolarisFacial.bl_idname, text="Facial Animation (.anmfa)")
+        # layout.operator(ImportPolarisSwing.bl_idname, text="Swing Animation (.anmsw)")
+        # layout.separator()
+        # layout.operator(ImportPolarisCamera.bl_idname, text="Camera Animation (.anmca)")
+        # layout.separator()
+        # layout.operator(ImportPolarisExtra.bl_idname, text="Extra Animation (.anmex)")
 
 class IMPORT_MT_tk7_anim(Menu):
     bl_idname = "IMPORT_MT_tk7_anim"
     bl_label = "TK7 Animation"
     def draw(self, context):
-        self.layout.operator(ImportTK7Fullbody.bl_idname, text="Fullbody Animation (.bin)")
+        pass
+        # 임시 비활성화 (로직 유지, UI만 숨김)
+        # self.layout.operator(ImportTK7Fullbody.bl_idname, text="Fullbody Animation (.bin)")
 
 class EXPORT_MT_polaris_tk(Menu):
     bl_idname = "EXPORT_MT_polaris_tk"
@@ -149,18 +191,20 @@ class EXPORT_MT_polaris_tk(Menu):
     def draw(self, context):
         layout = self.layout
         layout.operator(ExportPolarisFullbody.bl_idname, text="Fullbody Animation (.bin)")
-        layout.operator(ExportPolarisHand.bl_idname, text="Hand Animation (.anmhd)")
-        layout.operator(ExportPolarisFacial.bl_idname, text="Facial Animation (.anmfa)")
-        layout.operator(ExportPolarisSwing.bl_idname, text="Swing Animation (.anmsw)")
-        layout.separator()
-        layout.operator(ExportPolarisExtra.bl_idname, text="Extra Animation (.anmex)")
+        # 아래 항목들은 임시 비활성화 (로직 유지, UI만 숨김)
+        # layout.operator(ExportPolarisHand.bl_idname, text="Hand Animation (.anmhd)")
+        # layout.operator(ExportPolarisFacial.bl_idname, text="Facial Animation (.anmfa)")
+        # layout.operator(ExportPolarisSwing.bl_idname, text="Swing Animation (.anmsw)")
+        # layout.separator()
+        # layout.operator(ExportPolarisExtra.bl_idname, text="Extra Animation (.anmex)")
 
 def menu_func_import(self, context):
     global custom_icons
     icon_id = custom_icons["polaris_logo"].icon_id if custom_icons and "polaris_logo" in custom_icons else 0
-    tk7_id = custom_icons["tk7_logo"].icon_id if custom_icons and "tk7_logo" in custom_icons else 0
     self.layout.menu(IMPORT_MT_polaris_tk.bl_idname, icon_value=icon_id)
-    self.layout.menu(IMPORT_MT_tk7_anim.bl_idname, icon_value=tk7_id)
+    # TK7 임시 비활성화
+    # tk7_id = custom_icons["tk7_logo"].icon_id if custom_icons and "tk7_logo" in custom_icons else 0
+    # self.layout.menu(IMPORT_MT_tk7_anim.bl_idname, icon_value=tk7_id)
 
 def menu_func_export(self, context):
     global custom_icons
@@ -170,7 +214,8 @@ def menu_func_export(self, context):
 classes = (
     ImportPolarisFullbody, ImportPolarisHand, ImportPolarisFacial, ImportPolarisSwing, ImportPolarisCamera, ImportPolarisExtra, ImportTK7Fullbody,
     ExportPolarisFullbody, ExportPolarisHand, ExportPolarisFacial, ExportPolarisSwing, ExportPolarisExtra,
-    IMPORT_MT_polaris_tk, IMPORT_MT_tk7_anim, EXPORT_MT_polaris_tk
+    IMPORT_MT_polaris_tk, IMPORT_MT_tk7_anim, EXPORT_MT_polaris_tk,
+    POLARIS_OT_open_template, POLARIS_OT_open_template_ik, POLARIS_PT_sidebar,
 )
 
 def register():

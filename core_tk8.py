@@ -5,10 +5,16 @@ import math
 import os
 import re
 
-# 💡 반드시 profiles_tk8에서 가져와야 합니다.
-from .profiles_tk8 import PROFILE_REGISTRY, DEFAULT_FALLBACK, APOSE_OFFSETS, CATEGORY_MASKS
+from .profiles_tk8 import PROFILE_REGISTRY, DEFAULT_FALLBACK, APOSE_OFFSETS, CATEGORY_MASKS, IGNORE_BONES
 
 halfpi = math.pi / 2
+
+# =======================================================
+# 디버그 플래그
+# True 로 바꾸면 루트본 첫 프레임 값을 콘솔에 출력합니다.
+# 위치 튜닝 시 켜두고, 확인 후 False 로 되돌리세요.
+# =======================================================
+DEBUG_ROOT = False
 
 def read_uint32(f):
     data = f.read(4)
@@ -180,6 +186,8 @@ def import_tk8_anim(filepath, obj, anim_type, apply_apose, include_dummy):
             name_len = read_uint32(f)
             bone_name = f.read(name_len).decode('utf-8', errors='ignore').strip('\x00')
             
+            if bone_name in IGNORE_BONES:
+                continue
             if bone_name not in obj.pose.bones:
                 missing_bones.append(bone_name)
                 continue
@@ -216,130 +224,136 @@ def import_tk8_anim(filepath, obj, anim_type, apply_apose, include_dummy):
             if not selected_group: selected_group = DEFAULT_FALLBACK
                 
             rx, ry, rz = selected_group["basis"]
-            do_flip = selected_group["flip"]
-            ox, oy, oz = selected_group["offset"]
-            mx, my, mz = selected_group["loc_map"]
-            scale_div = selected_group["scale_div"]
+            do_flip     = selected_group["flip"]
+            ox, oy, oz  = selected_group["offset"]
+            mx, my, mz  = selected_group["loc_map"]
+            scale_div   = selected_group["scale_div"]
+            prx, pry, prz = selected_group.get("post_rot", (0, 0, 0))
+            is_root     = bone_name in root_bones
 
             C_mat = mathutils.Euler((math.radians(rx), math.radians(ry), math.radians(rz)), 'XYZ').to_matrix().to_4x4()
             C_inv = C_mat.inverted()
+            offset_quat   = mathutils.Euler((math.radians(ox),  math.radians(oy),  math.radians(oz)),  'XYZ').to_quaternion()
+            post_rot_quat = mathutils.Euler((math.radians(prx), math.radians(pry), math.radians(prz)), 'XYZ').to_quaternion()
 
+            def _process_frame(px_raw, py_raw, pz_raw, qx, qy, qz, qw, sx, sy, sz, frame):
+                """엔진 raw 값 → Blender 포즈 적용 및 키프레임 삽입."""
+                px = px_raw / scale_div
+                py = py_raw / scale_div
+                pz = pz_raw / scale_div
+
+                if do_flip:
+                    py  = -py
+                    qy  = -qy
+
+                # 축 재매핑 (loc_map)
+                loc_src = {'x': px, '-x': -px, 'y': py, '-y': -py, 'z': pz, '-z': -pz}
+                anim_loc  = mathutils.Vector((loc_src[mx], loc_src[my], loc_src[mz]))
+                anim_quat = mathutils.Quaternion((qw, qx, qy, qz)) @ offset_quat
+                anim_scale = mathutils.Vector((sx, sy, sz))
+
+                # DEBUG: 루트본 첫 프레임 raw → 변환 전 값 출력
+                if DEBUG_ROOT and is_root and frame == 0:
+                    print(f"[DEBUG ROOT] bone={bone_name}  raw_pos=({px_raw:.4f}, {py_raw:.4f}, {pz_raw:.4f})"
+                          f"  scaled=({px:.4f}, {py:.4f}, {pz:.4f})"
+                          f"  mapped=({anim_loc.x:.4f}, {anim_loc.y:.4f}, {anim_loc.z:.4f})"
+                          f"  quat=({qw:.4f}, {qx:.4f}, {qy:.4f}, {qz:.4f})")
+
+                # 좌표계 변환: C_mat @ M_engine @ C_inv
+                M_engine  = mathutils.Matrix.LocRotScale(anim_loc, anim_quat, anim_scale)
+                M_blender = C_mat @ M_engine @ C_inv
+                b_loc, b_rot, _ = M_blender.decompose()
+
+                if DEBUG_ROOT and is_root and frame == 0:
+                    print(f"[DEBUG ROOT] bone={bone_name}  blender_loc=({b_loc.x:.4f}, {b_loc.y:.4f}, {b_loc.z:.4f})")
+
+                # A-Pose 보정
+                if do_apose_correction and bone_name in APOSE_OFFSETS:
+                    ax, ay, az = APOSE_OFFSETS[bone_name]
+                    b_rot = mathutils.Euler((math.radians(ax), math.radians(ay), math.radians(az)), 'XYZ').to_quaternion() @ b_rot
+
+                # post_rot: 로컬 우측 보정 (basis로 표현 불가한 축 정렬 오류 수정용)
+                b_rot = b_rot @ post_rot_quat
+
+                if is_root:
+                    pbone.location = b_loc
+                    pbone.keyframe_insert(data_path="location", frame=frame)
+
+                pbone.rotation_quaternion = b_rot
+                pbone.keyframe_insert(data_path="rotation_quaternion", frame=frame)
+
+            # --------------------------------------------------
+            # 압축(bitstream) 모드
+            # --------------------------------------------------
             if is_keyframed:
                 f.seek(final_c_start)
-                header_chunk = f.read(16)
+                header_chunk     = f.read(16)
                 base_frame_offset = struct.unpack('<H', header_chunk[4:6])[0]
-                bitstream_offset = struct.unpack('<I', header_chunk[8:12])[0]
-                num_tracks = (base_frame_offset - 0x10) // 16
-                
+                bitstream_offset  = struct.unpack('<I', header_chunk[8:12])[0]
+                num_tracks        = (base_frame_offset - 0x10) // 16
+
                 channels_info = []
                 f.seek(final_c_start + 0x10)
                 for _ in range(num_tracks):
                     c_min, c_max, c_bits, c_idx = struct.unpack('<ffII', f.read(16))
                     if abs(c_max - c_min) < 0.000001: c_bits = 0
-                    elif c_bits > 32: c_bits = 0
+                    elif c_bits > 32:                  c_bits = 0
                     channels_info.append({"min": c_min, "max": c_max, "bits": c_bits, "idx": c_idx})
-                
+
                 f.seek(final_c_start + base_frame_offset)
                 base_frame = list(struct.unpack('<11f', f.read(44)))
                 f.seek(final_c_start + bitstream_offset)
-                bitstream_data = f.read(bone_frames * num_tracks * 4) 
+                bitstream_data = f.read(bone_frames * num_tracks * 4)
                 reader = BitReader(bitstream_data)
-                
+
+                # W 채널(idx=6)이 비트스트림에 포함됐는지 확인
                 has_qw = any(ch["idx"] == 6 for ch in channels_info)
+
                 decoded_tracks = {}
-                
                 for idx, ch in enumerate(channels_info):
-                    decoded_tracks[idx] = []
+                    vals_list = []
                     if ch["bits"] > 0:
+                        max_val = (1 << ch["bits"]) - 1
                         for _ in range(bone_frames):
-                            raw = reader.read_bits(ch["bits"])
-                            max_val = (1 << ch["bits"]) - 1
+                            raw   = reader.read_bits(ch["bits"])
                             ratio = raw / float(max_val) if max_val > 0 else 0.0
-                            decoded_tracks[idx].append(ch["min"] + (ch["max"] - ch["min"]) * ratio)
+                            vals_list.append(ch["min"] + (ch["max"] - ch["min"]) * ratio)
                     else:
-                        for _ in range(bone_frames):
-                            decoded_tracks[idx].append(ch["min"])
-                
+                        vals_list = [ch["min"]] * bone_frames
+                    decoded_tracks[idx] = vals_list
+
                 for frame in range(bone_frames):
                     comp = base_frame[:]
                     for idx, ch in enumerate(channels_info):
                         comp[ch["idx"]] = decoded_tracks[idx][frame]
-                            
+
                     sx, sy, sz = comp[0], comp[1], comp[2]
                     qx, qy, qz = comp[3], comp[4], comp[5]
-                    px, py, pz = comp[7], comp[8], comp[9]
-                    
-                    if not has_qw:
-                        dot_product = qx**2 + qy**2 + qz**2
-                        qw = math.sqrt(max(0.0, 1.0 - dot_product))
-                    else:
+
+                    if has_qw:
                         qw = comp[6]
-                    
-                    px, py, pz = px/scale_div, py/scale_div, pz/scale_div
-                    if do_flip: py, qy = -py, -qy
-                    
-                    loc_dict = {'x': px, 'y': py, 'z': pz, '-x': -px, '-y': -py, '-z': -pz}
-                    mapped_px = loc_dict.get(mx, px)
-                    mapped_py = loc_dict.get(my, py)
-                    mapped_pz = loc_dict.get(mz, pz)
-                        
-                    anim_loc = mathutils.Vector((mapped_px, mapped_py, mapped_pz))
-                    anim_quat = mathutils.Quaternion((qw, qx, qy, qz))
-                    offset_quat = mathutils.Euler((math.radians(ox), math.radians(oy), math.radians(oz)), 'XYZ').to_quaternion()
-                    anim_quat = anim_quat @ offset_quat
-                    anim_scale = mathutils.Vector((sx, sy, sz))
-                    
-                    M_engine = mathutils.Matrix.LocRotScale(anim_loc, anim_quat, anim_scale)
-                    M_blender = C_mat @ M_engine @ C_inv
-                    b_loc, b_rot, b_sca = M_blender.decompose()
-                    
-                    if do_apose_correction and bone_name in APOSE_OFFSETS:
-                        ax, ay, az = APOSE_OFFSETS[bone_name]
-                        apose_quat = mathutils.Euler((math.radians(ax), math.radians(ay), math.radians(az)), 'XYZ').to_quaternion()
-                        b_rot = apose_quat @ b_rot
-                    
-                    if bone_name in root_bones:
-                        pbone.location = b_loc
-                        pbone.keyframe_insert(data_path="location", frame=frame)
-                    
-                    pbone.rotation_quaternion = b_rot
-                    pbone.keyframe_insert(data_path="rotation_quaternion", frame=frame)
-                    
+                    else:
+                        # W 재구성: sqrt(1 - |xyz|²)
+                        # base_frame[6] 부호를 유지해야 올바른 방향 보존 (항상 양수로 재구성하면 뼈 뒤틀림 발생)
+                        dot = qx*qx + qy*qy + qz*qz
+                        qw  = math.copysign(math.sqrt(max(0.0, 1.0 - dot)), base_frame[6])
+
+                    _process_frame(comp[7], comp[8], comp[9], qx, qy, qz, qw, sx, sy, sz, frame)
+
+            # --------------------------------------------------
+            # FBF (비압축) 모드
+            # --------------------------------------------------
             else:
                 f.seek(final_c_start)
                 for frame in range(bone_frames):
                     raw_chunk = f.read(44)
                     if len(raw_chunk) < 44: break
                     vals = struct.unpack('<11f', raw_chunk)
-                    sx, sy, sz = vals[0:3]
-                    qx, qy, qz, qw = vals[3:7]
-                    px, py, pz = vals[7]/scale_div, vals[8]/scale_div, vals[9]/scale_div
-                    
-                    if do_flip: py, qy = -py, -qy
-                    loc_dict = {'x': px, 'y': py, 'z': pz, '-x': -px, '-y': -py, '-z': -pz}
-                    mapped_px = loc_dict.get(mx, px)
-                    mapped_py = loc_dict.get(my, py)
-                    mapped_pz = loc_dict.get(mz, pz)
-                        
-                    anim_loc = mathutils.Vector((mapped_px, mapped_py, mapped_pz))
-                    anim_quat = mathutils.Quaternion((qw, qx, qy, qz))
-                    offset_quat = mathutils.Euler((math.radians(ox), math.radians(oy), math.radians(oz)), 'XYZ').to_quaternion()
-                    anim_quat = anim_quat @ offset_quat
-                    anim_scale = mathutils.Vector((sx, sy, sz))
-                    
-                    M_engine = mathutils.Matrix.LocRotScale(anim_loc, anim_quat, anim_scale)
-                    M_blender = C_mat @ M_engine @ C_inv
-                    b_loc, b_rot, b_sca = M_blender.decompose()
-                    
-                    if do_apose_correction and bone_name in APOSE_OFFSETS:
-                        ax, ay, az = APOSE_OFFSETS[bone_name]
-                        apose_quat = mathutils.Euler((math.radians(ax), math.radians(ay), math.radians(az)), 'XYZ').to_quaternion()
-                        b_rot = apose_quat @ b_rot
-                    
-                    if bone_name in root_bones:
-                        pbone.location = b_loc
-                        pbone.keyframe_insert(data_path="location", frame=frame)
-                    pbone.rotation_quaternion = b_rot
-                    pbone.keyframe_insert(data_path="rotation_quaternion", frame=frame)
+                    # 샘플 레이아웃: Scale(0-2), Quat XYZW(3-6), Pos(7-9), Pad(10)
+                    sx, sy, sz         = vals[0], vals[1], vals[2]
+                    qx, qy, qz, qw     = vals[3], vals[4], vals[5], vals[6]
+                    px_raw, py_raw, pz_raw = vals[7], vals[8], vals[9]
+
+                    _process_frame(px_raw, py_raw, pz_raw, qx, qy, qz, qw, sx, sy, sz, frame)
                 
     return missing_bones
