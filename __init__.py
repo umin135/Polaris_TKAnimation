@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Polaris TKAnimation",
     "author": "UMIN",
-    "version": (0, 6, 0), 
+    "version": (1, 0, 0), 
     "blender": (3, 6, 0), 
     "location": "File > Import-Export",
     "description": "Import/Export Polaris & TK7 modular animation data.",
@@ -145,6 +145,80 @@ class POLARIS_OT_open_template_ik(Operator):
     def invoke(self, context, event):
         return context.window_manager.invoke_confirm(self, event)
 
+_ASSET_OBJECT_NAMES    = {"SINGLE-P1-ARMATURE",    "SINGLE-P1-MESH",    "Single_P1_Plane"}
+_ASSET_OBJECT_NAMES_IK = {"SINGLE-P1-ARMATURE-IK", "SINGLE-P1-MESH-IK", "Single_P1_Plane-IK"}
+
+class POLARIS_OT_append_assets(Operator):
+    bl_idname = "polaris.append_assets"
+    bl_label = "Create Polaris Single Rig"
+    bl_description = "Append the Polaris armature and mesh into the current scene"
+
+    def execute(self, context):
+        asset_path = os.path.join(os.path.dirname(__file__), "assets", "polaris_base.blend")
+        if not os.path.exists(asset_path):
+            self.report({'ERROR'}, f"Asset file not found: {asset_path}")
+            return {'CANCELLED'}
+
+        # 이미 씬에 존재하는 경우 P2, P3... 으로 번호 증가
+        n = 1
+        while f"SINGLE-P{n}-ARMATURE" in bpy.data.objects:
+            n += 1
+
+        with bpy.data.libraries.load(asset_path, link=False) as (data_from, data_to):
+            data_to.objects = [name for name in data_from.objects if name in _ASSET_OBJECT_NAMES]
+
+        appended = []
+        for obj in data_to.objects:
+            if obj is None:
+                continue
+            # 오브젝트 이름 P1 → Pn 치환
+            obj.name = obj.name.replace("P1", f"P{n}")
+            # 데이터 블록(메쉬/아마추어) 이름도 동일하게 치환
+            if obj.data:
+                obj.data.name = obj.data.name.replace("P1", f"P{n}")
+            context.collection.objects.link(obj)
+            appended.append(obj.name)
+
+        if appended:
+            self.report({'INFO'}, f"Appended: {', '.join(appended)}")
+        else:
+            self.report({'WARNING'}, "No matching objects found in asset file")
+        return {'FINISHED'}
+
+class POLARIS_OT_append_assets_ik(Operator):
+    bl_idname = "polaris.append_assets_ik"
+    bl_label = "Create Polaris Single Rig (IK)"
+    bl_description = "Append the Polaris IK armature and mesh into the current scene"
+
+    def execute(self, context):
+        asset_path = os.path.join(os.path.dirname(__file__), "assets", "polaris_base.blend")
+        if not os.path.exists(asset_path):
+            self.report({'ERROR'}, f"Asset file not found: {asset_path}")
+            return {'CANCELLED'}
+
+        n = 1
+        while f"SINGLE-P{n}-ARMATURE-IK" in bpy.data.objects:
+            n += 1
+
+        with bpy.data.libraries.load(asset_path, link=False) as (data_from, data_to):
+            data_to.objects = [name for name in data_from.objects if name in _ASSET_OBJECT_NAMES_IK]
+
+        appended = []
+        for obj in data_to.objects:
+            if obj is None:
+                continue
+            obj.name = obj.name.replace("P1", f"P{n}")
+            if obj.data:
+                obj.data.name = obj.data.name.replace("P1", f"P{n}")
+            context.collection.objects.link(obj)
+            appended.append(obj.name)
+
+        if appended:
+            self.report({'INFO'}, f"Appended: {', '.join(appended)}")
+        else:
+            self.report({'WARNING'}, "No matching objects found in asset file")
+        return {'FINISHED'}
+
 class POLARIS_PT_sidebar(bpy.types.Panel):
     bl_label = "Polaris TK Anim"
     bl_idname = "POLARIS_PT_sidebar"
@@ -156,8 +230,8 @@ class POLARIS_PT_sidebar(bpy.types.Panel):
         layout = self.layout
         global custom_icons
         icon_id = custom_icons["polaris_logo"].icon_id if custom_icons and "polaris_logo" in custom_icons else 0
-        layout.operator(POLARIS_OT_open_template.bl_idname, icon_value=icon_id)
-        layout.operator(POLARIS_OT_open_template_ik.bl_idname, icon_value=icon_id)
+        layout.operator(POLARIS_OT_append_assets.bl_idname, icon_value=icon_id)
+        layout.operator(POLARIS_OT_append_assets_ik.bl_idname, icon_value=icon_id)
 
 # =========================================================
 # 5. UI Menus
@@ -215,7 +289,7 @@ classes = (
     ImportPolarisFullbody, ImportPolarisHand, ImportPolarisFacial, ImportPolarisSwing, ImportPolarisCamera, ImportPolarisExtra, ImportTK7Fullbody,
     ExportPolarisFullbody, ExportPolarisHand, ExportPolarisFacial, ExportPolarisSwing, ExportPolarisExtra,
     IMPORT_MT_polaris_tk, IMPORT_MT_tk7_anim, EXPORT_MT_polaris_tk,
-    POLARIS_OT_open_template, POLARIS_OT_open_template_ik, POLARIS_PT_sidebar,
+    POLARIS_OT_open_template, POLARIS_OT_open_template_ik, POLARIS_OT_append_assets, POLARIS_OT_append_assets_ik, POLARIS_PT_sidebar,
 )
 
 def register():

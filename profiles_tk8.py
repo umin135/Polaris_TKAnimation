@@ -107,7 +107,12 @@ FULLBODY_GROUPS = {
         "bones": {"L_Toe", "R_Toe"}, "basis": (90, 0, 0), "flip": False, "offset": (0, 0, 90), "loc_map": ("x", "y", "z"), "scale_div": 100.0
     },
     "GROUP_H": { 
-        "bones": {"Hip"}, "basis": (0, 0, 90), "flip": False, "offset": (0, -90, -90), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+        "bones": {"Hip"}, 
+        "basis": (0, -90, 0), 
+        "flip": False, 
+        "offset": (0, -90, -90), 
+        "loc_map": ("x", "y", "z"), 
+        "scale_div": 100.0
     },
     "GROUP_BODY_AUX": { 
         "bones": {"MUKI", "MUNE_jnt", "KOSI_NULL2", "Neck2", "BASE", "C_Leg"}, "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0

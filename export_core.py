@@ -214,6 +214,44 @@ def _has_constraints(obj, bone_name):
     return len(pbone.constraints) > 0
 
 
+def _bake_to_temp_action(obj, start_frame, end_frame):
+    """
+    IK/컨스트레인트 결과를 임시 액션으로 베이크합니다.
+    반환값: (original_action, baked_action)
+    내보내기 후 original_action으로 복원하고 baked_action을 삭제하세요.
+    """
+    original_action = obj.animation_data.action if obj.animation_data else None
+
+    prev_active = bpy.context.view_layer.objects.active
+    bpy.context.view_layer.objects.active = obj
+
+    prev_mode = obj.mode
+    if prev_mode != 'POSE':
+        bpy.ops.object.mode_set(mode='POSE')
+
+    bpy.ops.pose.select_all(action='SELECT')
+
+    bpy.ops.nla.bake(
+        frame_start=start_frame,
+        frame_end=end_frame,
+        step=1,
+        only_selected=False,
+        visual_keying=True,
+        clear_constraints=False,
+        clear_parents=False,
+        use_current_action=False,
+        bake_types={'POSE'},
+    )
+
+    baked_action = obj.animation_data.action
+
+    if prev_mode != 'POSE':
+        bpy.ops.object.mode_set(mode=prev_mode)
+    bpy.context.view_layer.objects.active = prev_active
+
+    return original_action, baked_action
+
+
 def execute_export(export_path, obj, anim_type, apply_apose=True, include_dummy=False):
     print(f"\n[*] Starting Polaris Export for {anim_type}")
     print(f"[*] Output File: {export_path}")
@@ -273,11 +311,13 @@ def _execute_export_fullbody(export_path, obj, apply_apose):
 
     # ── 3. enc 동적 결정 (키프레임 유무 기준) ────────────────────────────────
     # IGNORE_BONES는 항상 템플릿 원본 enc 유지 (데이터 건드리지 않음)
+    _CONSTRAINT_IGNORE_BONES = {"Rot"}  # 컨스트레인트를 무시하고 키프레임만 참조할 본
+
     dynamic_enc = {}
     for bone_name, enc_orig, *_ in _FULLBODY_TRACK_INFO:
         if bone_name in IGNORE_BONES:
             dynamic_enc[bone_name] = enc_orig
-        elif _has_constraints(obj, bone_name):
+        elif bone_name not in _CONSTRAINT_IGNORE_BONES and _has_constraints(obj, bone_name):
             dynamic_enc[bone_name] = 1  # 컨스트레인트 본은 항상 전 프레임 베이크
         elif _has_keyframes(obj, bone_name):
             dynamic_enc[bone_name] = 1
@@ -288,6 +328,20 @@ def _execute_export_fullbody(export_path, obj, apply_apose):
     promoted = animated_bones - {n for n, e, *_ in _FULLBODY_TRACK_INFO if e == 1}
     if promoted:
         print(f"[*] enc=2→1 승격 뼈대: {sorted(promoted)}")
+
+    # ── 3b. 컨스트레인트 본이 있으면 임시 베이크 ─────────────────────────────
+    # IK 등 컨스트레인트 결과는 pbone.rotation_quaternion에 반영되지 않으므로
+    # visual_keying 베이크로 실제 포즈를 fcurve에 기록한 뒤 내보내기에 사용
+    baked_action   = None
+    original_action = None
+    needs_bake = any(
+        bone_name not in _CONSTRAINT_IGNORE_BONES and _has_constraints(obj, bone_name)
+        for bone_name in animated_bones
+    )
+    if needs_bake:
+        print("[*] IK/컨스트레인트 본 감지 → 임시 베이크 시작...")
+        original_action, baked_action = _bake_to_temp_action(obj, start_frame, end_frame)
+        print(f"[*] 임시 베이크 완료: {baked_action.name}")
 
     # ── 4. 레스트 포즈 위치 캐시 (비루트 enc=1 뼈대용) ───────────────────────
     rest_pos_cache = {}
@@ -447,6 +501,13 @@ def _execute_export_fullbody(export_path, obj, apply_apose):
     with open(export_path, 'wb') as f:
         f.write(buf)
         f.write(c_block)
+
+    # ── 10. 임시 베이크 액션 폐기 및 원본 복원 ───────────────────────────────
+    if baked_action is not None:
+        if obj.animation_data:
+            obj.animation_data.action = original_action
+        bpy.data.actions.remove(baked_action)
+        print("[*] 임시 베이크 액션 폐기 완료, 원본 액션 복원됨")
 
     print(f"[+] Polaris [FULLBODY] FlatBuffers Export 완료! ({len(buf) + len(c_block)} bytes)")
 
