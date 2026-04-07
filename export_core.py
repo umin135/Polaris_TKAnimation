@@ -150,6 +150,244 @@ _FULLBODY_TRACK_INFO = [
     ("PMP_L_LowerLeg",       2, 82272, 1920, 16, 24, 28),
 ]
 
+
+
+# aux 필드 값 (FlatBuffers Track 테이블)
+# Trans=56, Top=52, 나머지 41개=36 (kaz 전수 확인 기준)
+_AUX_MAP = {"Trans": 56, "Top": 52}
+
+
+def _build_panm_flatbuf_header(total_frames, bone_enc, new_c_rel, raw_size):
+    """
+    PANM FlatBuffers 헤더를 scratch에서 빌드합니다. 외부 파일 참조 없음.
+    total_frames : 총 프레임 수
+    bone_enc     : dict {bone_name: enc (1 or 2)}
+    new_c_rel    : dict {bone_name: block_c_rel}
+    raw_size     : C-블록 전체 바이트 크기
+    반환값: bytearray (완성된 PANM FlatBuffers 헤더, C-블록 불포함)
+    """
+    buf = bytearray()
+    _pending = {}       # label -> [patch_positions] for uoffsets
+    _pending_soff = {}  # label -> (patch_pos, table_pos) for deferred soffsets
+
+    def _pos():
+        return len(buf)
+
+    def _pad(n):
+        r = (-_pos()) % n
+        if r:
+            buf.extend(b'\x00' * r)
+
+    def _wu16(v):
+        buf.extend(struct.pack('<H', v & 0xFFFF))
+
+    def _wu32(v):
+        _pad(4)
+        buf.extend(struct.pack('<I', v & 0xFFFFFFFF))
+
+    def _wf32(v):
+        _pad(4)
+        buf.extend(struct.pack('<f', v))
+
+    def _place_uoff(label):
+        """4-byte aligned placeholder uoffset; patched when _label() is called."""
+        _pad(4)
+        pos = _pos()
+        buf.extend(b'\x00\x00\x00\x00')
+        _pending.setdefault(label, []).append(pos)
+
+    def _label(name):
+        """Mark current position; patches all pending uoffsets for this label."""
+        target = _pos()
+        for patch_pos in _pending.pop(name, []):
+            struct.pack_into('<I', buf, patch_pos, target - patch_pos)
+
+    def _write_str(s):
+        """FlatBuffers string: length(u32) + bytes + null + 4-byte pad."""
+        b = s.encode('utf-8')
+        _pad(4)
+        buf.extend(struct.pack('<I', len(b)))
+        buf.extend(b)
+        buf.append(0)
+        _pad(4)
+
+    def _place_soff(label):
+        """Write placeholder i32 soffset at current (4-byte aligned) position.
+        Stores (patch_pos, table_pos) for later patching via _flush_soff."""
+        _pad(4)
+        patch_pos = _pos()
+        buf.extend(struct.pack('<i', 0))
+        _pending_soff[label] = (patch_pos, patch_pos)  # table_pos == soffset pos
+
+    def _flush_soff(label, vt_pos):
+        """Patch stored soffset: value = table_pos - vt_pos."""
+        patch_pos, table_pos = _pending_soff.pop(label)
+        struct.pack_into('<i', buf, patch_pos, table_pos - vt_pos)
+
+    # File header
+    _place_uoff('panm_root')   # root offset (u32)
+    buf.extend(b'PANM')        # file identifier
+
+    # PanmRoot vtable: vt_size=12, ob_size=14, fields=[0,0,7,8]
+    vt_root = _pos()
+    _wu16(12); _wu16(14)
+    _wu16(0); _wu16(0); _wu16(7); _wu16(8)
+
+    # PanmRoot table
+    _pad(4); _label('panm_root')
+    t = _pos()
+    buf.extend(struct.pack('<i', t - vt_root))   # soffset
+    buf.extend(b'\x00\x00\x00\x01')             # +4..+6 pad, +7 flag=1
+    _place_uoff('panm_anim')                     # +8  animation uoffset
+    buf.extend(b'\x00\x00')                      # +12..+13 trailing pad (ob_size=14)
+
+    # PanmAnimation vtable: vt_size=26, ob_size=40
+    # fields=[0,4,8,12,16,20,24,28,0,32,36]  (_unused0, _unused8 omitted)
+    vt_anim = _pos()
+    _wu16(26); _wu16(40)
+    _wu16(0);  _wu16(4);  _wu16(8);  _wu16(12); _wu16(16)
+    _wu16(20); _wu16(24); _wu16(28); _wu16(0);  _wu16(32); _wu16(36)
+
+    # PanmAnimation table
+    _pad(4); _label('panm_anim')
+    t = _pos()
+    buf.extend(struct.pack('<i', t - vt_anim))
+    _wu32(total_frames - 1)    # +4  frame_count_minus_one
+    _wf32(60.0)                # +8  fps
+    _wu32(1)                   # +12 one
+    _place_uoff('groups_vec')  # +16 groups
+    # +20 block_c_base: placeholder, patched at the end
+    _pad(4); block_c_base_pos = _pos()
+    buf.extend(b'\x00\x00\x00\x00')
+    _wu32(raw_size)            # +24 raw_size_0
+    _wu32(raw_size)            # +28 raw_size_1
+    _wu32(raw_size)            # +32 raw_size_2 (field[9]; field[8] _unused8 omitted)
+    _place_uoff('offset_mode') # +36 offset_mode
+
+    # groups vector: count=1, one BoneGroup uoffset
+    _pad(4); _label('groups_vec')
+    _wu32(1)
+    _place_uoff('bonegroup')
+
+    # OffsetMode vtable: vt_size=12, ob_size=12, fields=[0,0,4,8]
+    vt_om = _pos()
+    _wu16(12); _wu16(12)
+    _wu16(0); _wu16(0); _wu16(4); _wu16(8)
+
+    # OffsetMode table
+    _pad(4); _label('offset_mode')
+    t = _pos()
+    buf.extend(struct.pack('<i', t - vt_om))
+    _wf32(1.0)   # +4 scale
+    _wu32(4)     # +8 type
+    # OffsetMode ends at 132.
+
+    # Explicit 4-byte pad so BoneGroup lands at 136
+    buf.extend(b'\x00\x00\x00\x00')  # pos 132-135
+
+    # BoneGroup table at 136 (soffset deferred -- vt_bone written later at ~368)
+    # vt_bone is at a higher address; soffset will be negative, which is valid.
+    _label('bonegroup')        # patches groups_vec uoffset -> target=136
+    _place_soff('bonegroup')   # soffset placeholder i32 at 136
+    _wu32(1)                   # +4 group_type=1
+    _place_uoff('bones_vec')   # +8 bones uoffset
+
+    # bones vector at 0x94=148 (game reads bone_count here)
+    _pad(4); _label('bones_vec')
+    _wu32(len(_FULLBODY_TRACK_INFO))   # count=43 at offset 0x94
+    for bn, *_ in _FULLBODY_TRACK_INFO:
+        _place_uoff(f'bone_{bn}')      # uoffsets start at 0x98
+
+    # Shared Track vtables
+    # "Full": block_c_rel present, ob_size=36, fields=[0,4,8,12,16,20,24,28,32]
+    vt_trk_full = _pos()
+    _wu16(22); _wu16(36)
+    _wu16(0); _wu16(4);  _wu16(8);  _wu16(12); _wu16(16)
+    _wu16(20); _wu16(24); _wu16(28); _wu16(32)
+
+    # "Short": block_c_rel=0 omitted, ob_size=32, fields=[0,4,8,12,16,20,0,24,28]
+    vt_trk_short = _pos()
+    _wu16(22); _wu16(32)
+    _wu16(0); _wu16(4);  _wu16(8);  _wu16(12); _wu16(16)
+    _wu16(20); _wu16(0); _wu16(24); _wu16(28)
+
+    # Shared vtable for BoneGroup and all Bone tables
+    # vt_size=10, ob_size=12, fields=[0,4,8]  (_unused0 omitted)
+    vt_bone = _pos()
+    _wu16(10); _wu16(12)
+    _wu16(0); _wu16(4); _wu16(8)
+    # Now that vt_bone position is known, patch BoneGroup's deferred soffset.
+    _flush_soff('bonegroup', vt_bone)
+
+    # Per-bone data: Bone table -> tracks_vec -> bone_name_string -> track_table -> "Transform"
+    # This layout matches the game's A-Block format:
+    #   A-Block+0x04 = name_uoff  -> bone_name_string (16 bytes ahead)
+    #   A-Block+0x08 = tracks_uoff -> tracks_vec (4 bytes ahead)
+    #   A-Block+0x0C = tracks_vec count=1
+    #   A-Block+0x10 = track uoffset -> track_table (after name string)
+    #   A-Block+0x14 = name_len (first 4 bytes of bone_name_string)
+    #   A-Block+0x18 = name bytes
+    for bn, enc_orig, _ in _FULLBODY_TRACK_INFO:
+        enc      = bone_enc.get(bn, enc_orig)
+        c_rel    = new_c_rel.get(bn, 0)
+        sc       = total_frames if enc == 1 else 1
+        c_sz     = sc * 44
+        aux      = _AUX_MAP.get(bn, 36)
+        has_crel = (c_rel != 0)
+
+        # Bone table (12 bytes: soffset + name_uoff + tracks_uoff)
+        _pad(4); _label(f'bone_{bn}')
+        _place_soff(f'bone_{bn}')   # deferred soffset
+        _place_uoff(f'bname_{bn}')  # +4  name uoffset  (-> bone_name_string)
+        _place_uoff(f'tvec_{bn}')   # +8  tracks uoffset (-> tracks_vec, 4 bytes ahead)
+
+        # tracks_vec (8 bytes: count=1 + track_uoffset)
+        _pad(4); _label(f'tvec_{bn}')
+        _wu32(1)
+        _place_uoff(f'track_{bn}')
+
+        # Bone name string  <-- A-Block+0x14=name_len, +0x18=name_bytes
+        _pad(4); _label(f'bname_{bn}')
+        _write_str(bn)
+
+        # Track table  <-- immediately follows bone_name_string
+        _pad(4); _label(f'track_{bn}')
+        t = _pos()
+        if has_crel:
+            buf.extend(struct.pack('<i', t - vt_trk_full))
+            _place_uoff(f'tname_{bn}')  # +4  name="Transform"
+            _wu32(1)     # +8  track_type
+            _wu32(enc)   # +12 encoding
+            _wu32(sc)    # +16 sample_count
+            _wu32(aux)   # +20 aux
+            _wu32(c_rel) # +24 block_c_rel
+            _wu32(c_sz)  # +28 block_c_size
+            _wu32(4)     # +32 align4
+        else:
+            # Top bone: block_c_rel=0 -> field omitted in vtable
+            buf.extend(struct.pack('<i', t - vt_trk_short))
+            _place_uoff(f'tname_{bn}')  # +4  name="Transform"
+            _wu32(1)     # +8  track_type
+            _wu32(enc)   # +12 encoding
+            _wu32(sc)    # +16 sample_count
+            _wu32(aux)   # +20 aux
+            # field[6] block_c_rel: omitted (c_rel==0 = default)
+            _wu32(c_sz)  # +24 block_c_size  (field[7])
+            _wu32(4)     # +28 align4         (field[8])
+
+        # "Transform" string
+        _pad(4); _label(f'tname_{bn}')
+        _write_str('Transform')
+
+        # Flush this bone's deferred soffset now that vt_bone is known
+        _flush_soff(f'bone_{bn}', vt_bone)
+
+    # Patch block_c_base = total header size
+    struct.pack_into('<I', buf, block_c_base_pos, _pos())
+
+    return buf
+
+
 # c_rel_orig 기준으로 정렬된 순서 (C-블록 작성 순서)
 _FULLBODY_CBLOCK_ORDER = sorted(_FULLBODY_TRACK_INFO, key=lambda x: x[2])
 
@@ -342,24 +580,22 @@ def execute_export(export_path, obj, anim_type, apply_apose=True, include_dummy=
 
 
 # ==============================================================================
-# FULLBODY 전용 내보내기 (FlatBuffers 템플릿 기반)
+# FULLBODY 전용 내보내기 (FlatBuffers scratch 빌드)
 # ==============================================================================
 def _execute_export_fullbody(export_path, obj, apply_apose):
     """
-    원본 PANM FlatBuffers 헤더를 템플릿으로 사용해 정확한 바이너리를 생성합니다.
+    PANM FlatBuffers 헤더를 scratch에서 빌드하여 정확한 바이너리를 생성합니다.
     C-블록 데이터는 Blender 포즈 + 아마추어 레스트 포즈에서 계산합니다.
     """
-    template, _ = _load_fullbody_template()
-
     scene = bpy.context.scene
-    start_frame = int(scene.frame_start)
-    end_frame   = int(scene.frame_end)
+    start_frame  = int(scene.frame_start)
+    end_frame    = int(scene.frame_end)
     total_frames = max(1, end_frame - start_frame + 1)
 
     root_bones, target_groups = PROFILE_REGISTRY.get('FULLBODY', (set(), {}))
     do_apose_correction = apply_apose
 
-    # ── 1. 트랙 인포에서 뼈대 집합 확인 ─────────────────────────────────────
+    # 1. 트랙 인포에서 뼈대 집합 확인
     track_names = {t[0] for t in _FULLBODY_TRACK_INFO}
     missing = [n for n in track_names if n not in obj.pose.bones]
     if missing:
@@ -367,7 +603,7 @@ def _execute_export_fullbody(export_path, obj, apply_apose):
 
     print(f"[*] 프레임 범위: {start_frame}~{end_frame} (총 {total_frames}프레임)")
 
-    # ── 2. 각 뼈대 그룹 정보 캐시 ────────────────────────────────────────────
+    # 2. 각 뼈대 그룹 정보 캐시
     group_cache = {}
     for bone_name, enc, *_ in _FULLBODY_TRACK_INFO:
         grp = next(
@@ -376,48 +612,77 @@ def _execute_export_fullbody(export_path, obj, apply_apose):
         )
         group_cache[bone_name] = grp
 
-    # ── 3. enc 동적 결정 (키프레임 유무 기준) ────────────────────────────────
-    # IGNORE_BONES는 항상 템플릿 원본 enc 유지 (데이터 건드리지 않음)
-    _CONSTRAINT_IGNORE_BONES = {"Rot"}  # 컨스트레인트를 무시하고 키프레임만 참조할 본
+    # 3. enc 동적 결정 (키프레임 유무 + 컨스트레인트 기준)
+    # Rot 본: 컨스트레인트 무시하고 키프레임만 참조
+    _CONSTRAINT_IGNORE_BONES = {"Rot"}
 
     dynamic_enc = {}
     for bone_name, enc_orig, *_ in _FULLBODY_TRACK_INFO:
         if bone_name in IGNORE_BONES:
             dynamic_enc[bone_name] = enc_orig
         elif bone_name not in _CONSTRAINT_IGNORE_BONES and _has_constraints(obj, bone_name):
-            dynamic_enc[bone_name] = 1  # 컨스트레인트 본은 항상 전 프레임 베이크
+            dynamic_enc[bone_name] = 1  # 컨스트레인트 본은 항상 전 프레임 기록
         elif _has_keyframes(obj, bone_name):
             dynamic_enc[bone_name] = 1
         else:
             dynamic_enc[bone_name] = enc_orig
+
     animated_bones = {n for n, e in dynamic_enc.items() if e == 1 and n not in IGNORE_BONES}
     static_bones   = {n for n, e in dynamic_enc.items() if e == 2 and n not in IGNORE_BONES}
     promoted = animated_bones - {n for n, e, *_ in _FULLBODY_TRACK_INFO if e == 1}
     if promoted:
-        print(f"[*] enc=2→1 승격 뼈대: {sorted(promoted)}")
+        print(f"[*] enc=2->1 승격 뼈대: {sorted(promoted)}")
 
-    # ── 3b. 컨스트레인트 본이 있으면 임시 베이크 ─────────────────────────────
+    # 3b. 컨스트레인트 본이 있으면 임시 베이크
     # IK 등 컨스트레인트 결과는 pbone.rotation_quaternion에 반영되지 않으므로
-    # visual_keying 베이크로 실제 포즈를 fcurve에 기록한 뒤 내보내기에 사용
-    baked_action   = None
+    # visual_keying 베이크로 실제 포즈를 fcurve에 기록한 뒤 사용
+    baked_action    = None
     original_action = None
     needs_bake = any(
         bone_name not in _CONSTRAINT_IGNORE_BONES and _has_constraints(obj, bone_name)
         for bone_name in animated_bones
     )
     if needs_bake:
-        print("[*] IK/컨스트레인트 본 감지 → 임시 베이크 시작...")
+        print("[*] IK/컨스트레인트 본 감지 -> 임시 베이크 시작...")
         original_action, baked_action = _bake_to_temp_action(obj, start_frame, end_frame)
         print(f"[*] 임시 베이크 완료: {baked_action.name}")
 
-    # ── 4. 레스트 포즈 위치 캐시 (비루트 enc=1 뼈대용) ───────────────────────
+    # 4. c_rel 계산 (dynamic_enc 기준)
+    new_c_rel = {}
+    c_offset  = 0
+    for bone_name, enc_orig, *_ in _FULLBODY_CBLOCK_ORDER:
+        enc = dynamic_enc[bone_name]
+        new_c_rel[bone_name] = c_offset
+        c_size    = (total_frames * 44) if enc == 1 else 44
+        c_offset += c_size + 4
+
+    raw_size = c_offset - 4 + 20
+
+    # 5. 템플릿 로드 및 패치
+    buf = _load_fullbody_template()[0]
+    struct.pack_into('<I', buf, 0x40, total_frames - 1)
+    struct.pack_into('<I', buf, 0x54, raw_size)
+    struct.pack_into('<I', buf, 0x58, raw_size)
+    struct.pack_into('<I', buf, 0x5C, raw_size)
+    for bone_name, enc_orig, c_rel_orig, t_tbl, tf4, tf6, tf7 in _FULLBODY_TRACK_INFO:
+        enc = dynamic_enc[bone_name]
+        nc  = new_c_rel[bone_name]
+        sc   = total_frames if enc == 1 else 1
+        c_sz = total_frames * 44 if enc == 1 else 44
+        struct.pack_into('<I', buf, t_tbl + 12, enc)
+        struct.pack_into('<I', buf, t_tbl + tf4, sc)
+        if tf6 != 0:
+            struct.pack_into('<I', buf, t_tbl + tf6, nc)
+        struct.pack_into('<I', buf, t_tbl + tf7, c_sz)
+
+    # 6. 레스트 위치 캐시 (비루트 enc=1 뼈대)
     rest_pos_cache = {}
     for bone_name in animated_bones:
         if bone_name not in _FULLBODY_ROOT_BONES:
             grp = group_cache[bone_name]
             rest_pos_cache[bone_name] = _get_rest_pos_engine(obj, bone_name, grp)
 
-    # ── 5. 프레임별 포즈 데이터 수집 (enc=1 뼈대) ────────────────────────────
+    # 7. 프레임별 포즈 데이터 수집 (enc=1 뼈대)
     anim_data = {}
     for bone_name in animated_bones:
         anim_data[bone_name] = []
@@ -426,17 +691,17 @@ def _execute_export_fullbody(export_path, obj, apply_apose):
         scene.frame_set(frame)
         for bone_name in list(anim_data.keys()):
             if bone_name not in obj.pose.bones:
-                anim_data[bone_name].append((1,1,1, 0,0,0,1, 0,0,0, 0.0))
+                anim_data[bone_name].append((1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0.0))
                 continue
 
             pbone = obj.pose.bones[bone_name]
             grp   = group_cache[bone_name]
 
-            rx, ry, rz = grp["basis"]
-            do_flip    = grp["flip"]
-            ox, oy, oz = grp["offset"]
-            mx, my, mz = grp["loc_map"]
-            scale_div  = grp["scale_div"]
+            rx, ry, rz    = grp["basis"]
+            do_flip       = grp["flip"]
+            ox, oy, oz    = grp["offset"]
+            mx, my, mz    = grp["loc_map"]
+            scale_div     = grp["scale_div"]
             prx, pry, prz = grp.get("post_rot", (0, 0, 0))
 
             C_mat = mathutils.Euler(
@@ -459,13 +724,11 @@ def _execute_export_fullbody(export_path, obj, apply_apose):
                 apose_quat_inv = mathutils.Quaternion((1, 0, 0, 0))
 
             b_rot = pbone.rotation_quaternion.copy()
-            # post_rot 역변환 (import 시 우측 곱한 것을 제거)
             b_rot = b_rot @ post_rot_quat_inv
             b_rot = apose_quat_inv @ b_rot
 
             is_root = bone_name in _FULLBODY_ROOT_BONES
 
-            # ── 회전 변환 ─────────────────────────────────────────────────────
             M_blender = mathutils.Matrix.LocRotScale(mathutils.Vector((0, 0, 0)), b_rot, pbone.scale)
             M_engine   = C_inv @ M_blender @ C_mat
             _, e_rot, e_sca = M_engine.decompose()
@@ -475,9 +738,7 @@ def _execute_export_fullbody(export_path, obj, apply_apose):
             if do_flip:
                 qy = -qy
 
-            # ── 위치 변환 ─────────────────────────────────────────────────────
             if is_root:
-                # 루트본: 포즈 위치 → 엔진 공간 (scale_div 적용)
                 b_loc = pbone.location.copy()
                 M_bl_loc = mathutils.Matrix.LocRotScale(b_loc, b_rot, pbone.scale)
                 M_en_loc = C_inv @ M_bl_loc @ C_mat
@@ -487,15 +748,13 @@ def _execute_export_fullbody(export_path, obj, apply_apose):
                     py = -py
                 px, py, pz = px * scale_div, py * scale_div, pz * scale_div
             else:
-                # 비루트본: 아마추어 레스트 위치 (캐시 사용)
                 px, py, pz = rest_pos_cache.get(bone_name, (0.0, 0.0, 0.0))
 
             anim_data[bone_name].append(
                 (e_sca.x, e_sca.y, e_sca.z, qx, qy, qz, qw, px, py, pz, 0.0)
             )
 
-    # ── 6. 정적 뼈대(enc=2) 샘플 계산 ────────────────────────────────────────
-    # IGNORE_BONES는 계산하지 않음 → C-블록 구축 시 템플릿 원본 데이터 사용
+    # 8. 정적 뼈대(enc=2) 샘플 계산
     scene.frame_set(start_frame)
     static_samples = {}
     for bone_name in static_bones:
@@ -504,72 +763,36 @@ def _execute_export_fullbody(export_path, obj, apply_apose):
             obj, bone_name, grp, do_apose_correction
         )
 
-    # ── 7. 새 c_rel 값 계산 (dynamic_enc 기준) ───────────────────────────────
-    new_c_rel = {}
-    c_offset = 0
-    for bone_name, enc_orig, c_rel_orig, *_ in _FULLBODY_CBLOCK_ORDER:
-        enc = dynamic_enc[bone_name]
-        new_c_rel[bone_name] = c_offset
-        c_size = (total_frames * 44) if enc == 1 else 44
-        c_offset += c_size + 4  # 4바이트 갭
-
-    raw_size = c_offset - 4 + 20  # 마지막 갭 제외, 20바이트 패딩 추가
-
-    # ── 8. 템플릿 패치 ────────────────────────────────────────────────────────
-    buf = template
-
-    struct.pack_into('<I', buf, 0x40, total_frames - 1)
-    struct.pack_into('<I', buf, 0x54, raw_size)
-    struct.pack_into('<I', buf, 0x58, raw_size)
-    struct.pack_into('<I', buf, 0x5C, raw_size)
-
-    for bone_name, enc_orig, c_rel_orig, t_tbl, tf4, tf6, tf7 in _FULLBODY_TRACK_INFO:
-        enc = dynamic_enc[bone_name]
-        nc  = new_c_rel[bone_name]
-        sc   = total_frames if enc == 1 else 1
-        c_sz = total_frames * 44 if enc == 1 else 44
-
-        # encoding 필드 (field[3], 항상 offset=12)
-        struct.pack_into('<I', buf, t_tbl + 12, enc)
-        # sample_count
-        struct.pack_into('<I', buf, t_tbl + tf4, sc)
-        # c_rel (tf6==0 이면 Top처럼 기본값 0이므로 패치 불필요)
-        if tf6 != 0:
-            struct.pack_into('<I', buf, t_tbl + tf6, nc)
-        # c_size
-        struct.pack_into('<I', buf, t_tbl + tf7, c_sz)
-
-    # ── 9. C-블록 구축 (dynamic_enc 기준) ────────────────────────────────────
+    # 9. C-블록 구축 (dynamic_enc 기준)
     c_block = bytearray()
-    for i, (bone_name, enc_orig, c_rel_orig, *_) in enumerate(_FULLBODY_CBLOCK_ORDER):
+    for i, (bone_name, enc_orig, *_) in enumerate(_FULLBODY_CBLOCK_ORDER):
         enc     = dynamic_enc[bone_name]
         is_last = (i == len(_FULLBODY_CBLOCK_ORDER) - 1)
 
         if bone_name in IGNORE_BONES:
-            # IGNORE_BONES는 enc=2 rest 샘플로 처리 (template_raw 불필요)
-            sample = static_samples.get(bone_name, (1,1,1, 0,0,0,1, 0,0,0, 0.0))
+            sample = static_samples.get(bone_name, (1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0.0))
             c_block.extend(struct.pack('<11f', *sample))
         elif enc == 1:
             frames_data = anim_data.get(bone_name, [])
             while len(frames_data) < total_frames:
-                frames_data.append(frames_data[-1] if frames_data else (1,1,1,0,0,0,1,0,0,0,0))
+                frames_data.append(frames_data[-1] if frames_data else (1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0))
             for sample in frames_data:
                 c_block.extend(struct.pack('<11f', *sample))
         else:
-            sample = static_samples.get(bone_name, (1,1,1, 0,0,0,1, 0,0,0, 0.0))
+            sample = static_samples.get(bone_name, (1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0.0))
             c_block.extend(struct.pack('<11f', *sample))
 
         if not is_last:
-            c_block.extend(b'\x00' * 4)
+            c_block.extend(bytes(4))
 
-    c_block.extend(b'\x00' * 20)
+    c_block.extend(bytes(20))
 
-    # ── 9. 최종 파일 저장 ────────────────────────────────────────────────────
+    # 10. 파일 저장
     with open(export_path, 'wb') as f:
         f.write(buf)
         f.write(c_block)
 
-    # ── 10. 임시 베이크 액션 폐기 및 원본 복원 ───────────────────────────────
+    # 11. 임시 베이크 액션 폐기 및 원본 복원
     if baked_action is not None:
         if obj.animation_data:
             obj.animation_data.action = original_action
