@@ -2,14 +2,25 @@
 This add-on allows you to import and export Tekken 8 custom animation binaries to Blender.
 It's still very experimental and has many issues to fix.
 
-## ToDo
-### WIP 🔨
-- A-Pose에 임포트할 수 있도록 지원하기.
-- Core Bone에 대한 축 교정 전부 해결하기.
-- 추가 Bone들에 대한 축 교정 전부 해결하기. (카즈야 레이저/기타 등등)
-### Soon 💻
-- Hand 애니메이션 분석
-- Facial 애니메이션 분석
-- Wing 애니메이션 분석
-- Extra 애니메이션 분석
-- Camera 애니메이션 분석
+## Goals
+Enable the import and export of TEKKEN 8 animation binaries.
+First, Tekken 8 consists of five categories of animations as follows:
+- Fullbody
+- Hand
+- Facial
+- Swing
+- Camera
+- Extra
+
+Each category has a different target to animate.
+
+The animation encoding formats are categorized as follows:
+ - FBF (Frame By Frame)
+ - KEF (Keyframed)
+ - MIXED (mixed - KEF/FBF)
+
+## Issues to Resolve
+TK6/7/TTT2 share almost the same animation format.
+However, TK8 has a different structure.
+
+We need to complete a conversion tool between the legacy formats and the TK8 format.
