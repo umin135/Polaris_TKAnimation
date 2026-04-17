@@ -22,12 +22,17 @@ else:
 import os
 import shutil
 import tempfile
+import threading
+import urllib.request
 import bpy.utils.previews
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import Operator, Menu
 
 custom_icons = None
+
+_RIG_DOWNLOAD_URL = "https://drive.usercontent.google.com/u/0/uc?id=1SHMQgMCYcJQdhoijfjaNTqneeYpijQAa&export=download"
+_download_state   = {"running": False, "done": False, "error": None}
 
 # =========================================================
 # 1. Polaris (TK8) Import Classes
@@ -111,6 +116,71 @@ class POLARIS_OT_open_template_ik(Operator):
 _ASSET_OBJECT_NAMES    = {"SINGLE-P1-ARMATURE",    "SINGLE-P1-MESH",    "Single_P1_Plane"}
 _ASSET_OBJECT_NAMES_IK = {"SINGLE-P1-ARMATURE-IK", "SINGLE-P1-MESH-IK", "Single_P1_Plane-IK"}
 
+def _asset_path():
+    return os.path.join(os.path.dirname(__file__), "assets", "polaris_base.blend")
+
+def _do_download(url, dest):
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req) as resp, open(dest, "wb") as f:
+            while True:
+                chunk = resp.read(1 << 16)
+                if not chunk:
+                    break
+                f.write(chunk)
+        _download_state["done"] = True
+    except Exception as e:
+        _download_state["error"] = str(e)
+        if os.path.exists(dest):
+            os.remove(dest)
+    finally:
+        _download_state["running"] = False
+
+class POLARIS_OT_download_rig(Operator):
+    bl_idname  = "polaris.download_rig"
+    bl_label   = "Download Requirements"
+    bl_description = "Download Requirements"
+
+    _timer = None
+
+    def modal(self, context, event):
+        if event.type != 'TIMER':
+            return {'PASS_THROUGH'}
+
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                area.tag_redraw()
+
+        if not _download_state["running"]:
+            context.window_manager.event_timer_remove(self._timer)
+            if _download_state["error"]:
+                self.report({'ERROR'}, f"Download failed: {_download_state['error']}")
+                return {'CANCELLED'}
+            self.report({'INFO'}, "polaris_base.blend downloaded successfully.")
+            return {'FINISHED'}
+
+        return {'PASS_THROUGH'}
+
+    def execute(self, context):
+        if _download_state["running"]:
+            self.report({'WARNING'}, "Download already in progress.")
+            return {'CANCELLED'}
+
+        os.makedirs(os.path.dirname(_asset_path()), exist_ok=True)
+        _download_state["running"] = True
+        _download_state["done"]    = False
+        _download_state["error"]   = None
+
+        threading.Thread(
+            target=_do_download,
+            args=(_RIG_DOWNLOAD_URL, _asset_path()),
+            daemon=True,
+        ).start()
+
+        self._timer = context.window_manager.event_timer_add(0.5, window=context.window)
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
 class POLARIS_OT_append_assets(Operator):
     bl_idname = "polaris.append_assets"
     bl_label = "Create Polaris Single Rig"
@@ -190,8 +260,15 @@ class POLARIS_PT_sidebar(bpy.types.Panel):
         layout = self.layout
         global custom_icons
         icon_id = custom_icons["polaris_logo"].icon_id if custom_icons and "polaris_logo" in custom_icons else 0
-        layout.operator(POLARIS_OT_append_assets.bl_idname, icon_value=icon_id)
-        layout.operator(POLARIS_OT_append_assets_ik.bl_idname, icon_value=icon_id)
+
+        if not os.path.exists(_asset_path()):
+            if _download_state["running"]:
+                layout.label(text="Downloading...", icon='SORTTIME')
+            else:
+                layout.operator(POLARIS_OT_download_rig.bl_idname, icon='IMPORT')
+        else:
+            layout.operator(POLARIS_OT_append_assets.bl_idname,    icon_value=icon_id)
+            layout.operator(POLARIS_OT_append_assets_ik.bl_idname, icon_value=icon_id)
 
 # =========================================================
 # 4. UI Menus
@@ -238,7 +315,8 @@ classes = (
     ImportPolarisFullbody, ImportPolarisHand, ImportPolarisFacial, ImportPolarisSwing, ImportPolarisCamera, ImportPolarisExtra,
     ExportPolarisFullbody, ExportPolarisHand, ExportPolarisFacial, ExportPolarisSwing, ExportPolarisExtra,
     IMPORT_MT_polaris_tk, EXPORT_MT_polaris_tk,
-    POLARIS_OT_open_template, POLARIS_OT_open_template_ik, POLARIS_OT_append_assets, POLARIS_OT_append_assets_ik, POLARIS_PT_sidebar,
+    POLARIS_OT_open_template, POLARIS_OT_open_template_ik,
+    POLARIS_OT_download_rig, POLARIS_OT_append_assets, POLARIS_OT_append_assets_ik, POLARIS_PT_sidebar,
 )
 
 def register():
