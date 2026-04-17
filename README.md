@@ -12,6 +12,11 @@ The rig and mannequin extracted from TK8 are not included in the actual reposito
 Therefore, you can download them by clicking the requirements download button.<br>
 These will be downloaded automatically and moved to the required location.<br>
 
-
+<img src="https://raw.githubusercontent.com/umin135/Polaris_TKAnimation/refs/heads/main/_readme/how_1.png" /><br>
 You can create a TEKKEN8 Dummy from the sub-menu.<br>
 There are dummies that include IK and dummies that do not.<br>
+I will not explain in detail what IK is.<br>
+<img src="https://raw.githubusercontent.com/umin135/Polaris_TKAnimation/refs/heads/main/_readme/how_2.png" /><br>
+A menu to import or export TK8 Animations has been added to the Import/Export menu.<br>
+You can simply select an Armature to export or import.<br>
+Note: It is not imported as a separate Action but updates the current Timeline.<br>
