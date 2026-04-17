@@ -39,92 +39,235 @@ DEFAULT_FALLBACK = {
 #
 # [rot_offset] 루트본 회전에만 추가할 고정 오프셋 (도 단위)
 # =======================================================
-ROOT_MOTION_LOC_MAP   = ("x", "y", "z")   # ← 축 방향 문제시 수정
+ROOT_MOTION_LOC_MAP   = ("y", "x", "z")   # ← 축 방향 문제시 수정
 ROOT_MOTION_SCALE     = 1.0                 # ← 스케일 문제시 수정
 ROOT_MOTION_BASIS     = (0, 0, 90)          # ← 회전 기저 문제시 수정
 ROOT_MOTION_FLIP      = False
 ROOT_MOTION_ROT_OFFSET = (0, 0, 0)
 
+# Top 전용 파라미터
+TOP_LOC_MAP    = ("x", "y", "z")
+TOP_SCALE      = 1.0
+TOP_BASIS      = (0, 0, 90)
+TOP_FLIP       = False
+TOP_ROT_OFFSET = (0, 0, 0)
+
+# Trans 전용 파라미터
+TRANS_LOC_MAP    = ("x", "y", "z")
+TRANS_SCALE      = 1.0
+TRANS_BASIS      = (0, 0, 90)
+TRANS_FLIP       = False
+TRANS_ROT_OFFSET = (0, 0, 0)
+
+# Rot 전용 파라미터
+ROT_LOC_MAP    = ("x", "y", "z")
+ROT_SCALE      = 1.0
+ROT_BASIS      = (0, 0, 90)
+ROT_FLIP       = False
+ROT_ROT_OFFSET = (0, 0, 0)
+
 # =======================================================
 # 1. FULLBODY (전신) 프로필
 # =======================================================
-FULLBODY_ROOTS = {"Top", "Trans"}
 FULLBODY_GROUPS = {
-    "ROOT_MOTION": {
-        "bones": {"Top", "Trans", "Rot"},
-        "basis":     ROOT_MOTION_BASIS,
-        "flip":      ROOT_MOTION_FLIP,
-        "offset":    ROOT_MOTION_ROT_OFFSET,
-        "loc_map":   ROOT_MOTION_LOC_MAP,
-        "scale_div": ROOT_MOTION_SCALE,
+
+    # ── 루트 모션 본 ────────────────────────────────────
+    "Top": {
+        "bones": {"Top"},
+        "root": True,
+        "basis": TOP_BASIS,
+        "flip": TOP_FLIP,
+        "offset": TOP_ROT_OFFSET,
+        "loc_map": TOP_LOC_MAP,
+        "scale_div": TOP_SCALE,
     },
-    "Root2": {
+    "Trans": {
+        "bones": {"Trans"}, "root": True,
+        "basis": TRANS_BASIS, "flip": TRANS_FLIP, "offset": TRANS_ROT_OFFSET,
+        "loc_map": TRANS_LOC_MAP,
+        "scale_div": TRANS_SCALE,
+    },
+    "Rot": {
+        "bones": {"Rot"},
+        "basis": ROT_BASIS, "flip": ROT_FLIP, "offset": ROT_ROT_OFFSET,
+        "loc_map": ROT_LOC_MAP, "scale_div": ROT_SCALE,
+    },
+    "HARA_ROT1": {
         "bones": {"HARA_ROT1"},
-        "basis": (0, 0, 90),
-        "flip": False,
-        "offset": (0, 0, 0),
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
         "post_rot": (0, 0, 180),
-        "loc_map": ("x", "y", "z"),
-        "scale_div": 100.0
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
 
+    # ── 척추 / 목 / 머리 ────────────────────────────────
+    "Spine1": {
+        "bones": {"Spine1"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "Spine2": {
+        "bones": {"Spine2"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "Neck": {
+        "bones": {"Neck"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "Head": {
+        "bones": {"Head"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
 
-    "GROUP_A": { 
-        "bones": {
-            "Spine1", "Spine2", "Neck", "Head", "R_UpperArm", "PMP_R_UpperArm", "R_LowerArm", "PMP_R_LowerArm", "R_LowerLeg", 
-            "L_UpperArm", "PMP_L_UpperArm", "L_LowerArm", "PMP_L_LowerArm", "L_LowerLeg", "L_Foot", "R_Foot",
-            "PMP_L_Chest", "PMP_R_Chest", "PMP_L_LowerArm_fore", "PMP_R_LowerArm_fore", "PMP_L_Shoulder", "PMP_R_Shoulder",
-            "PMP_L_UpperLeg", "PMP_R_UpperLeg"
-        },
-        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+    # ── 어깨 ────────────────────────────────────────────
+    "R_Shoulder": {
+        "bones": {"R_Shoulder"},
+        "basis": (0, -90, 90), "flip": False, "offset": (0, -90, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
-    "GROUP_B": { 
-        "bones": {"R_Shoulder"}, 
-        "basis": (0, -90, 90), 
-        "flip": False, 
-        "offset": (0, -90, 0), 
-        "loc_map": ("x", "y", "z"), 
-        "scale_div": 100.0
+    "L_Shoulder": {
+        "bones": {"L_Shoulder"},
+        "basis": (0, 90, 90), "flip": False, "offset": (0, 90, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
-    "GROUP_C": { 
-        "bones": {"L_Shoulder"}, 
-        "basis": (0, 90, 90), 
-        "flip": False, 
-        "offset": (0, 90, 0), 
-        "loc_map": ("x", "y", "z"), 
-        "scale_div": 100.0
+
+    # ── 팔 ──────────────────────────────────────────────
+    "R_UpperArm": {
+        "bones": {"R_UpperArm", "PMP_R_UpperArm"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
-    "GROUP_D": { 
-        "bones": {"R_UpperLeg", "L_UpperLeg"}, "basis": (0, 0, -90), "flip": False, "offset": (0, 0, 180), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+    "L_UpperArm": {
+        "bones": {"L_UpperArm", "PMP_L_UpperArm"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
-    "GROUP_E": { 
-        "bones": {"L_Hand"}, "basis": (-90, 0, 90), "flip": False, "offset": (-90, 0, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+    "R_LowerArm": {
+        "bones": {"R_LowerArm", "PMP_R_LowerArm"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
-    "GROUP_F": { 
-        "bones": {"R_Hand"}, "basis": (90, 0, 90), "flip": False, "offset": (90, 0, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+    "L_LowerArm": {
+        "bones": {"L_LowerArm", "PMP_L_LowerArm"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
-    "GROUP_G": { 
-        "bones": {"L_Toe", "R_Toe"}, "basis": (90, 0, 0), "flip": False, "offset": (0, 0, 90), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+    "R_Hand": {
+        "bones": {"R_Hand"},
+        "basis": (90, 0, 90), "flip": False, "offset": (90, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
-    "GROUP_H": { 
-        "bones": {"Hip"}, 
-        "basis": (0, -90, 0), 
-        "flip": False, 
-        "offset": (0, -90, -90), 
-        "loc_map": ("x", "y", "z"), 
-        "scale_div": 100.0
+    "L_Hand": {
+        "bones": {"L_Hand"},
+        "basis": (-90, 0, 90), "flip": False, "offset": (-90, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
-    "GROUP_BODY_AUX": { 
-        "bones": {"MUKI", "MUNE_jnt", "KOSI_NULL2", "Neck2", "BASE", "C_Leg"}, "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+
+    # ── 다리 ────────────────────────────────────────────
+    "R_UpperLeg": {
+        "bones": {"R_UpperLeg"},
+        "basis": (0, 0, -90), "flip": False, "offset": (0, 0, 180),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
-    "GROUP_PROPS_PHYSICS": {
+    "L_UpperLeg": {
+        "bones": {"L_UpperLeg"},
+        "basis": (0, 0, -90), "flip": False, "offset": (0, 0, 180),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "R_LowerLeg": {
+        "bones": {"R_LowerLeg"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "L_LowerLeg": {
+        "bones": {"L_LowerLeg"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "R_Foot": {
+        "bones": {"R_Foot"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "L_Foot": {
+        "bones": {"L_Foot"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "R_Toe": {
+        "bones": {"R_Toe"},
+        "basis": (90, 0, 0), "flip": False, "offset": (0, 0, 90),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "L_Toe": {
+        "bones": {"L_Toe"},
+        "basis": (90, 0, 0), "flip": False, "offset": (0, 0, 90),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+
+    # ── 허리 / 보조 ──────────────────────────────────────
+    "Hip": {
+        "bones": {"Hip"},
+        "basis": (0, -90, 0), "flip": False, "offset": (0, -90, -90),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "MUKI": {
+        "bones": {"MUKI"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "MUNE_jnt": {
+        "bones": {"MUNE_jnt"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "KOSI_NULL2": {
+        "bones": {"KOSI_NULL2"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "AUX_Misc": {
+        "bones": {"Neck2", "BASE", "C_Leg"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+
+    # ── PMP (Physics/Cloth) 보조 본 ──────────────────────
+    "PMP_Shoulders": {
+        "bones": {"PMP_L_Shoulder", "PMP_R_Shoulder"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "PMP_Chest": {
+        "bones": {"PMP_L_Chest", "PMP_R_Chest"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "PMP_LowerArm_fore": {
+        "bones": {"PMP_L_LowerArm_fore", "PMP_R_LowerArm_fore"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "PMP_UpperLegs": {
+        "bones": {"PMP_L_UpperLeg", "PMP_R_UpperLeg"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+
+    # ── 소품 / 물리 부착 본 (ATH_, BUKI_, Have, mushi_) ──
+    "Props_Physics": {
         "bones": {
             "ATH_Hip_Body", "ATH_Hip_Root", "ATH_Hip_bottom", "ATH_Hip_box_cover", "ATH_Hip_box_studs", "ATH_Hip_front_grip", "ATH_Hip_grip_base", "ATH_Hip_grip_rot", "ATH_Hip_saya01", "ATH_Hip_saya02", "ATH_Hip_saya03", "ATH_Hip_saya04", "ATH_Hip_scope_base_rot", "ATH_Hip_scope_extend", "ATH_Hip_scope_rot_a", "ATH_Hip_scope_rot_b", "ATH_Hip_scope_rot_c", "ATH_Hip_scope_rot_d", "ATH_Hip_stretch", "ATH_Hip_top", "ATH_Hip_trigger", "ATH_Hip_tsuka", "ATH_L_Arm_separator", "ATH_L_Hand_separator", "ATH_L_LowerArm", "ATH_L_burnier", "ATH_L_burnier_separator", "ATH_L_got_00", "ATH_L_got_01", "ATH_L_got_Index1", "ATH_L_got_Index2", "ATH_L_got_Index3", "ATH_L_got_Middle1", "ATH_L_got_Middle2", "ATH_L_got_Middle3", "ATH_L_got_Pinky1", "ATH_L_got_Pinky2", "ATH_L_got_Pinky3", "ATH_L_got_Ring1", "ATH_L_got_Ring2", "ATH_L_got_Ring3", "ATH_L_got_Thumb0", "ATH_L_got_Thumb1", "ATH_L_got_Thumb2", "ATH_L_knife", "ATH_L_saya01", "ATH_L_saya02", "ATH_L_saya03", "ATH_L_saya04", "ATH_L_spear", "ATH_L_spear_2nd", "ATH_L_tsuka", "ATH_L_weapon001", "ATH_Neck_separator", "ATH_R_Arm_separator", "ATH_R_Hand_separator", "ATH_R_LowerArm", "ATH_R_Thigh_karambit", "ATH_R_burnier", "ATH_R_burnier_separator", "ATH_R_flashlight", "ATH_R_folding001", "ATH_R_folding002", "ATH_R_folding003", "ATH_R_folding004", "ATH_R_folding005", "ATH_R_folding006", "ATH_R_grenade", "ATH_R_handgun01", "ATH_R_handgun02", "ATH_R_karambit", "ATH_R_katana", "ATH_R_spear", "ATH_R_spear_2nd", "ATH_R_weapon001", "ATH_Spine1_separator", "ATH_cane", "ATH_chest_beam", "ATH_katanaL_1st", "ATH_katanaL_2nd", "ATH_katanaR_1st", "ATH_katanaR_2nd", "ATH_katasaya_1st", "ATH_katasaya_2nd", "ATH_katatuka", "ATH_mnt_C_burnier_back", "ATH_mnt_L_burnier_back", "ATH_mnt_R_burnier_back", "ATH_pikL_1st", "ATH_pyaL_1st", "ATH_pyaL_2nd", "ATH_pyaR_1st", "ATH_pyaR_2nd", "ATH_pyaR_B_1st", "ATH_pyaR_B_2nd", "ATH_saya_1st", "ATH_saya_2nd", "ATH_swordR_1st", "ATH_swordR_2nd", "ATH_sword_back", "ATH_tail_01", "ATH_tail_02", "ATH_tail_03", "ATH_tail_04", "ATH_tail_05", "ATH_tail_06", "ATH_tail_07", "ATH_tail_08", "ATH_tail_09", "ATH_tail_10", "ATH_tail_11", "ATH_tail_12", "ATH_tail_13", "ATH_tail_14", "ATH_tail_15", "ATH_tail_16", "ATH_thirdeye_beam", "ATH_tuka_top", "ATH_visor001", "ATH_visor002", "ATH_visor003", "ATH_visor004", "BUKI_1_jnt", "BUKI_2_jnt", "L_Have", "L_Have2", "R_Have", "R_Have2", "mushi_R_1", "mushi_R_2", "mushi_R_3", "mushi_R_4", "mushi_R_5", "mushi_R_6", "mushi_R_7", "mushi_R_8"
         },
-        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
-    "GROUP_I_global": { 
-        "bones": {"DUMMY"}, "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0), "loc_map": ("x", "y", "z"), "scale_div": 100.0
+    "Misc_Global": {
+        "bones": {"DUMMY"},
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
     },
 }
 
@@ -187,7 +330,7 @@ EXTRA_GROUPS = {}
 # 엔진에서 호출할 프로필 레지스트리
 # =======================================================
 PROFILE_REGISTRY = {
-    'FULLBODY': (FULLBODY_ROOTS, FULLBODY_GROUPS),
+    'FULLBODY': ({b for g in FULLBODY_GROUPS.values() if g.get("root") for b in g["bones"]}, FULLBODY_GROUPS),
     'HAND':     (HAND_ROOTS, HAND_GROUPS),
     'FACIAL':   (FACIAL_ROOTS, FACIAL_GROUPS),
     'SWING':    (SWING_ROOTS, SWING_GROUPS),

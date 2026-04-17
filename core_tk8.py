@@ -287,45 +287,73 @@ def import_tk8_anim(filepath, obj, anim_type, apply_apose, include_dummy):
             # --------------------------------------------------
             if is_keyframed:
                 f.seek(final_c_start)
-                header_chunk     = f.read(16)
-                base_frame_offset = struct.unpack('<H', header_chunk[4:6])[0]
-                bitstream_offset  = struct.unpack('<I', header_chunk[8:12])[0]
+                header_chunk  = f.read(16)
+                # C-block 헤더 레이아웃 (16바이트):
+                #   [0:2]  magic       = 0x0004 (고정)
+                #   [2:4]  mode        = 6(일반 본) / 10(루트 모션 본)
+                #   [4:6]  codec_flags = 0x00A0 (Transform) / 0x0020 (FOV)
+                #   [6:8]  unit_count  = 프레임당 비트 수 (bits_per_frame)
+                #   [8:12] header_size = payload(bitstream) 시작 오프셋
+                #   [12:16]frame_count = 프레임 수 (B-block 값과 동일)
+                bits_per_frame   = struct.unpack('<H', header_chunk[6:8])[0]
+                header_size      = struct.unpack('<I', header_chunk[8:12])[0]  # = bitstream 시작
+                # base_frame은 header 끝 44바이트 앞에 위치
+                base_frame_offset = header_size - 44
                 num_tracks        = (base_frame_offset - 0x10) // 16
 
                 channels_info = []
                 f.seek(final_c_start + 0x10)
                 for _ in range(num_tracks):
                     c_min, c_max, c_bits, c_idx = struct.unpack('<ffII', f.read(16))
-                    if abs(c_max - c_min) < 0.000001: c_bits = 0
-                    elif c_bits > 32:                  c_bits = 0
+                    if c_max == c_min: c_bits = 0   # 정확히 동일 → 비트스트림에 없음
+                    elif c_bits > 32:  c_bits = 0   # 손상된 값 방어
                     channels_info.append({"min": c_min, "max": c_max, "bits": c_bits, "idx": c_idx})
 
                 f.seek(final_c_start + base_frame_offset)
                 base_frame = list(struct.unpack('<11f', f.read(44)))
-                f.seek(final_c_start + bitstream_offset)
+                f.seek(final_c_start + header_size)
                 bitstream_data = f.read(bone_frames * num_tracks * 4)
                 reader = BitReader(bitstream_data)
 
-                # W 채널(idx=6)이 비트스트림에 포함됐는지 확인
-                has_qw = any(ch["idx"] == 6 for ch in channels_info)
+                # ch6(qw)이 비트스트림에 명시적으로 인코딩됐는지 확인
+                has_qw = (channels_info[6]["bits"] > 0)
 
-                decoded_tracks = {}
-                for idx, ch in enumerate(channels_info):
-                    vals_list = []
-                    if ch["bits"] > 0:
-                        max_val = (1 << ch["bits"]) - 1
-                        for _ in range(bone_frames):
-                            raw   = reader.read_bits(ch["bits"])
-                            ratio = raw / float(max_val) if max_val > 0 else 0.0
-                            vals_list.append(ch["min"] + (ch["max"] - ch["min"]) * ratio)
-                    else:
-                        vals_list = [ch["min"]] * bone_frames
-                    decoded_tracks[idx] = vals_list
+                # bits_per_frame 헤더값과 활성채널 비트합 비교로 부호비트 존재 여부를 판단
+                # (추측 기반이 아니라 헤더의 실제 값 사용 → 본마다 정확히 적용)
+                sum_active_bits = sum(ch["bits"] for ch in channels_info if ch["bits"] > 0)
+                sign_bit_per_frame = (bits_per_frame == sum_active_bits + 1)
 
+                # KEF/MIXED root motion 본 위치 채널 재정렬
+                # -------------------------------------------------------
+                # mode=10(0x000A) 본은 FBF와 위치 축이 다름.
+                # 활성 채널 패턴은 애니메이션마다 달라지므로 본 이름으로 직접 판별:
+                #   Top   → comp[8]↔comp[9] : 엔진 py 슬롯 값이 Blender Z(수직)로 가야 함
+                #   Trans → comp[7]↔comp[8] : 엔진 px 슬롯 값이 Blender Y(전후)로 가야 함
+                c_mode = struct.unpack('<H', header_chunk[2:4])[0]
+                kef_pos_swap = None
+                if c_mode == 0x000A:
+                    if bone_name == "Top":
+                        kef_pos_swap = (8, 9)
+                    elif bone_name == "Trans":
+                        kef_pos_swap = (7, 8)
+
+                # 프레임 인터리브 방식: 프레임마다 모든 활성 채널 → qw 부호비트
                 for frame in range(bone_frames):
                     comp = base_frame[:]
                     for idx, ch in enumerate(channels_info):
-                        comp[ch["idx"]] = decoded_tracks[idx][frame]
+                        if ch["bits"] > 0:
+                            max_val = (1 << ch["bits"]) - 1
+                            raw = reader.read_bits(ch["bits"])
+                            comp[idx] = ch["min"] + (raw / float(max_val)) * (ch["max"] - ch["min"])
+                        # bits==0이면 base_frame 값을 그대로 유지
+
+                    # root 본 위치 채널 재정렬 (KEF 엔진 좌표 → FBF 호환 순서)
+                    # 단방향 이동: a의 애니메이션 값을 b로 옮기고,
+                    # a 슬롯은 base_frame[a]로 복원 (상대 슬롯의 상수 offset이 유입되는 것을 방지)
+                    if kef_pos_swap:
+                        a, b = kef_pos_swap
+                        comp[b] = comp[a]
+                        comp[a] = base_frame[a]
 
                     sx, sy, sz = comp[0], comp[1], comp[2]
                     qx, qy, qz = comp[3], comp[4], comp[5]
@@ -333,10 +361,13 @@ def import_tk8_anim(filepath, obj, anim_type, apply_apose, include_dummy):
                     if has_qw:
                         qw = comp[6]
                     else:
-                        # W 재구성: sqrt(1 - |xyz|²)
-                        # base_frame[6] 부호를 유지해야 올바른 방향 보존 (항상 양수로 재구성하면 뼈 뒤틀림 발생)
                         dot = qx*qx + qy*qy + qz*qz
-                        qw  = math.copysign(math.sqrt(max(0.0, 1.0 - dot)), base_frame[6])
+                        if sign_bit_per_frame:
+                            sign_bit = reader.read_bits(1)
+                            sign = -1.0 if sign_bit else 1.0
+                        else:
+                            sign = math.copysign(1.0, base_frame[6])
+                        qw = sign * math.sqrt(max(0.0, 1.0 - dot))
 
                     _process_frame(comp[7], comp[8], comp[9], qx, qy, qz, qw, sx, sy, sz, frame)
 
