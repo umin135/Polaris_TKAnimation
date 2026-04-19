@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Polaris TKAnimation",
     "author": "UMIN",
-    "version": (1, 0, 0),
+    "version": (1, 2, 0),
     "blender": (3, 6, 0),
     "location": "File > Import-Export",
     "description": "Import/Export Polaris (Tekken 8) animation data.",
@@ -261,14 +261,15 @@ class POLARIS_PT_sidebar(bpy.types.Panel):
         global custom_icons
         icon_id = custom_icons["polaris_logo"].icon_id if custom_icons and "polaris_logo" in custom_icons else 0
 
-        if not os.path.exists(_asset_path()):
-            if _download_state["running"]:
-                layout.label(text="Downloading...", icon='SORTTIME')
-            else:
-                layout.operator(POLARIS_OT_download_rig.bl_idname, icon='IMPORT')
+        if _download_state["running"]:
+            layout.label(text="Downloading...", icon='SORTTIME')
+        elif not os.path.exists(_asset_path()):
+            layout.operator(POLARIS_OT_download_rig.bl_idname, icon='IMPORT')
         else:
             layout.operator(POLARIS_OT_append_assets.bl_idname,    icon_value=icon_id)
             layout.operator(POLARIS_OT_append_assets_ik.bl_idname, icon_value=icon_id)
+            layout.separator()
+            layout.operator(POLARIS_OT_download_rig.bl_idname, text="Re-download Assets", icon='FILE_REFRESH')
 
 # =========================================================
 # 4. UI Menus

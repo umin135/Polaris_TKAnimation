@@ -196,20 +196,46 @@ def import_tk8_anim(filepath, obj, anim_type, apply_apose, include_dummy):
 
             pbone = obj.pose.bones[bone_name]
             pbone.rotation_mode = 'QUATERNION'
-            
+
             f.seek(block_b_offset + 0xC)
             indicator = read_uint32(f)
-            f.seek(block_b_offset + 0x14)
-            anim_flag = read_uint32(f)
+
+            # B-block schema 버전 자동 감지:
+            # OLD schema: anim_flag=+0x14, bone_frames=+0x18, c_rel=+0x20
+            # NEW schema: anim_flag=+0x04, bone_frames=+0x08, c_rel=+0x10 (또는 +0x18 for 0x34)
+            # indicator 0x34/0x38은 new schema 전용이므로 즉시 판별 가능.
+            # 0x20/0x24의 경우 +0x14 값이 {1,2,3} 범위인지로 판별.
+            if indicator in (0x34, 0x38):
+                new_schema = True
+            else:
+                f.seek(block_b_offset + 0x14)
+                anim_flag_old = read_uint32(f)
+                new_schema = anim_flag_old not in (1, 2, 3)
+
+            if new_schema:
+                f.seek(block_b_offset + 0x04)
+                anim_flag = read_uint32(f)
+                f.seek(block_b_offset + 0x08)
+                bone_frames = read_uint32(f)
+            else:
+                anim_flag = anim_flag_old
+                f.seek(block_b_offset + 0x18)
+                bone_frames = read_uint32(f)
+
             is_keyframed = (anim_flag == 3)
-            f.seek(block_b_offset + 0x18)
-            bone_frames = read_uint32(f)
             if bone_frames == 0: bone_frames = 1
-            
+
             if indicator == 0x20:
                 final_c_start = first_c_ptr
             elif indicator == 0x24:
-                f.seek(block_b_offset + 0x20)
+                c_rel_off = 0x10 if new_schema else 0x20
+                f.seek(block_b_offset + c_rel_off)
+                final_c_start = first_c_ptr + read_uint32(f)
+            elif indicator == 0x38:
+                f.seek(block_b_offset + 0x10)
+                final_c_start = first_c_ptr + read_uint32(f)
+            elif indicator == 0x34:
+                f.seek(block_b_offset + 0x18)
                 final_c_start = first_c_ptr + read_uint32(f)
             else:
                 continue
@@ -315,27 +341,21 @@ def import_tk8_anim(filepath, obj, anim_type, apply_apose, include_dummy):
                 bitstream_data = f.read(bone_frames * num_tracks * 4)
                 reader = BitReader(bitstream_data)
 
-                # ch6(qw)이 비트스트림에 명시적으로 인코딩됐는지 확인
-                has_qw = (channels_info[6]["bits"] > 0)
+                c_mode = struct.unpack('<H', header_chunk[2:4])[0]
+                is_root_motion_bone = (c_mode == 0x000A)
+
+                # mode=0x000A(루트 모션 본)에서 채널 테이블 인덱스가 +1 오프셋:
+                #   ch6 → comp[7] (posX),  ch7 → comp[8] (posY),  ch8 → comp[9] (posZ)
+                #   ch6 슬롯에 posX 값이 들어오므로 qw는 항상 유도(derive)해야 함.
+                # 일반 본(mode=6)은 기존 방식 유지: ch6 = qw, ch7-9 = pos.
+                if is_root_motion_bone:
+                    has_qw = False
+                else:
+                    has_qw = (len(channels_info) > 6 and channels_info[6]["bits"] > 0)
 
                 # bits_per_frame 헤더값과 활성채널 비트합 비교로 부호비트 존재 여부를 판단
-                # (추측 기반이 아니라 헤더의 실제 값 사용 → 본마다 정확히 적용)
                 sum_active_bits = sum(ch["bits"] for ch in channels_info if ch["bits"] > 0)
                 sign_bit_per_frame = (bits_per_frame == sum_active_bits + 1)
-
-                # KEF/MIXED root motion 본 위치 채널 재정렬
-                # -------------------------------------------------------
-                # mode=10(0x000A) 본은 FBF와 위치 축이 다름.
-                # 활성 채널 패턴은 애니메이션마다 달라지므로 본 이름으로 직접 판별:
-                #   Top   → comp[8]↔comp[9] : 엔진 py 슬롯 값이 Blender Z(수직)로 가야 함
-                #   Trans → comp[7]↔comp[8] : 엔진 px 슬롯 값이 Blender Y(전후)로 가야 함
-                c_mode = struct.unpack('<H', header_chunk[2:4])[0]
-                kef_pos_swap = None
-                if c_mode == 0x000A:
-                    if bone_name == "Top":
-                        kef_pos_swap = (8, 9)
-                    elif bone_name == "Trans":
-                        kef_pos_swap = (7, 8)
 
                 # 프레임 인터리브 방식: 프레임마다 모든 활성 채널 → qw 부호비트
                 for frame in range(bone_frames):
@@ -344,16 +364,13 @@ def import_tk8_anim(filepath, obj, anim_type, apply_apose, include_dummy):
                         if ch["bits"] > 0:
                             max_val = (1 << ch["bits"]) - 1
                             raw = reader.read_bits(ch["bits"])
-                            comp[idx] = ch["min"] + (raw / float(max_val)) * (ch["max"] - ch["min"])
-                        # bits==0이면 base_frame 값을 그대로 유지
-
-                    # root 본 위치 채널 재정렬 (KEF 엔진 좌표 → FBF 호환 순서)
-                    # 단방향 이동: a의 애니메이션 값을 b로 옮기고,
-                    # a 슬롯은 base_frame[a]로 복원 (상대 슬롯의 상수 offset이 유입되는 것을 방지)
-                    if kef_pos_swap:
-                        a, b = kef_pos_swap
-                        comp[b] = comp[a]
-                        comp[a] = base_frame[a]
+                            decoded = ch["min"] + (raw / float(max_val)) * (ch["max"] - ch["min"])
+                            # mode=0x000A: 위치 채널(idx>=6)은 comp[idx+1]에 기록
+                            if is_root_motion_bone and idx >= 6:
+                                if idx + 1 < len(comp):
+                                    comp[idx + 1] = decoded
+                            else:
+                                comp[idx] = decoded
 
                     sx, sy, sz = comp[0], comp[1], comp[2]
                     qx, qy, qz = comp[3], comp[4], comp[5]
