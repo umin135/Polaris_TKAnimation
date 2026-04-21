@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Polaris TKAnimation",
     "author": "UMIN",
-    "version": (1, 2, 0),
+    "version": (1, 3, 0),
     "blender": (3, 6, 0),
     "location": "File > Import-Export",
     "description": "Import/Export Polaris (Tekken 8) animation data.",
