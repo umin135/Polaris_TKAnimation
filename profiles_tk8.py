@@ -272,7 +272,7 @@ FULLBODY_GROUPS = {
 }
 
 # =======================================================
-# 카테고리 준비
+# 2. HAND 프로필 — MASK_HAND_L/R 정의 후 아래에서 채움
 # =======================================================
 HAND_ROOTS = set()
 HAND_GROUPS = {}
@@ -355,6 +355,19 @@ MASK_HAND_R = {
     "R_Index0", "R_Index1", "R_Index2", "R_Index3", "R_Middle0", "R_Middle1", "R_Middle2", "R_Middle3",
     "R_Pinky0", "R_Pinky1", "R_Pinky2", "R_Pinky3", "R_Ring0", "R_Ring1", "R_Ring2", "R_Ring3", "R_Thumb0", "R_Thumb1", "R_Thumb2"
 }
+
+HAND_GROUPS.update({
+    "Hand_Left": {
+        "bones": MASK_HAND_L,
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+    "Hand_Right": {
+        "bones": MASK_HAND_R,
+        "basis": (0, 0, 90), "flip": False, "offset": (0, 0, 0),
+        "loc_map": ("x", "y", "z"), "scale_div": 100.0,
+    },
+})
 
 MASK_FULLBODY = {
     "ATH_Hip_Body", "ATH_Hip_Root", "ATH_Hip_bottom", "ATH_Hip_box_cover", "ATH_Hip_box_studs", "ATH_Hip_front_grip", "ATH_Hip_grip_base", "ATH_Hip_grip_rot", "ATH_Hip_saya01", "ATH_Hip_saya02", "ATH_Hip_saya03", "ATH_Hip_saya04", "ATH_Hip_scope_base_rot", "ATH_Hip_scope_extend", "ATH_Hip_scope_rot_a", "ATH_Hip_scope_rot_b", "ATH_Hip_scope_rot_c", "ATH_Hip_scope_rot_d", "ATH_Hip_stretch", "ATH_Hip_top", "ATH_Hip_trigger", "ATH_Hip_tsuka", "ATH_L_Arm_separator", "ATH_L_Hand_separator", "ATH_L_LowerArm", "ATH_L_burnier", "ATH_L_burnier_separator", "ATH_L_got_00", "ATH_L_got_01", "ATH_L_got_Index1", "ATH_L_got_Index2", "ATH_L_got_Index3", "ATH_L_got_Middle1", "ATH_L_got_Middle2", "ATH_L_got_Middle3", "ATH_L_got_Pinky1", "ATH_L_got_Pinky2", "ATH_L_got_Pinky3", "ATH_L_got_Ring1", "ATH_L_got_Ring2", "ATH_L_got_Ring3", "ATH_L_got_Thumb0", "ATH_L_got_Thumb1", "ATH_L_got_Thumb2", "ATH_L_knife", "ATH_L_saya01", "ATH_L_saya02", "ATH_L_saya03", "ATH_L_saya04", "ATH_L_spear", "ATH_L_spear_2nd", "ATH_L_tsuka", "ATH_L_weapon001", "ATH_Neck_separator", "ATH_R_Arm_separator", "ATH_R_Hand_separator", "ATH_R_LowerArm", "ATH_R_Thigh_karambit", "ATH_R_burnier", "ATH_R_burnier_separator", "ATH_R_flashlight", "ATH_R_folding001", "ATH_R_folding002", "ATH_R_folding003", "ATH_R_folding004", "ATH_R_folding005", "ATH_R_folding006", "ATH_R_grenade", "ATH_R_handgun01", "ATH_R_handgun02", "ATH_R_karambit", "ATH_R_katana", "ATH_R_spear", "ATH_R_spear_2nd", "ATH_R_weapon001", "ATH_Spine1_separator", "ATH_cane", "ATH_chest_beam", "ATH_katanaL_1st", "ATH_katanaL_2nd", "ATH_katanaR_1st", "ATH_katanaR_2nd", "ATH_katasaya_1st", "ATH_katasaya_2nd", "ATH_katatuka", "ATH_mnt_C_burnier_back", "ATH_mnt_L_burnier_back", "ATH_mnt_R_burnier_back", "ATH_pikL_1st", "ATH_pyaL_1st", "ATH_pyaL_2nd", "ATH_pyaR_1st", "ATH_pyaR_2nd", "ATH_pyaR_B_1st", "ATH_pyaR_B_2nd", "ATH_saya_1st", "ATH_saya_2nd", "ATH_swordR_1st", "ATH_swordR_2nd", "ATH_sword_back", "ATH_tail_01", "ATH_tail_02", "ATH_tail_03", "ATH_tail_04", "ATH_tail_05", "ATH_tail_06", "ATH_tail_07", "ATH_tail_08", "ATH_tail_09", "ATH_tail_10", "ATH_tail_11", "ATH_tail_12", "ATH_tail_13", "ATH_tail_14", "ATH_tail_15", "ATH_tail_16", "ATH_thirdeye_beam", "ATH_tuka_top", "ATH_visor001", "ATH_visor002", "ATH_visor003", "ATH_visor004", "BASE", "BUKI_1_jnt", "BUKI_2_jnt", "C_Leg", "HARA_ROT1", "Head", "Hip", "KOSI_NULL2", "L_Foot", "L_Hand", "L_Have", "L_Have2", "L_LowerArm", "L_LowerLeg", "L_Shoulder", "L_Toe", "L_UpperArm", "L_UpperLeg", "MUKI", "MUNE_jnt", "Neck", "Neck2", "PHY_Hip__a001", "PHY_Hip__a002", "PHY_Hip__a003", "PHY_Hip__a004", "PHY_Hip__a005", "PHY_Hip__a006", "PHY_Hip__a007", "PHY_Hip__a008", "PMP_L_Chest", "PMP_L_LowerArm", "PMP_L_LowerArm_fore", "PMP_L_LowerLeg", "PMP_L_Shoulder", "PMP_L_UpperArm", "PMP_L_UpperLeg", "PMP_R_Chest", "PMP_R_LowerArm", "PMP_R_LowerArm_fore", "PMP_R_LowerLeg", "PMP_R_Shoulder", "PMP_R_UpperArm", "PMP_R_UpperLeg", "R_Foot", "R_Hand", "R_Have", "R_Have2", "R_LowerArm", "R_LowerLeg", "R_Shoulder", "R_Toe", "R_UpperArm", "R_UpperLeg", "Rot", "Spine1", "Spine2", "Top", "Trans", "mushi_R_1", "mushi_R_2", "mushi_R_3", "mushi_R_4", "mushi_R_5", "mushi_R_6", "mushi_R_7", "mushi_R_8"

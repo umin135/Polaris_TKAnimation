@@ -96,6 +96,85 @@ def _load_fullbody_template():
     raw = base64.b64decode(_FULLBODY_HEADER_B64)
     return bytearray(raw), None
 
+
+# ==============================================================================
+# HAND (왼손) FlatBuffers 헤더 — TEST_hand.anmhd 에서 추출 (0x88C = 2188 bytes)
+# ==============================================================================
+_HAND_L_HEADER_B64 = (
+    "FAAAAFBBTk0MAA4AAAAAAAcACAAMAAAAAAAAASAAAAAAABoAKAAAAAQACAAMABAAFAAYABwAAAAg"
+    "ACQAGgAAAOUAAAAAAHBCAQAAABgAAACMCAAAoAMAAKADAACgAwAAGAAAAAEAAAAgAAAADAAMAAAA"
+    "AAAEAAgADAAAAAAAgD8EAAAAAAAAAC79//8BAAAABAAAABMAAADMAgAAnAIAAHQCAABMAgAAJAIA"
+    "APwBAADUAQAArAEAAIQBAABcAQAANAEAAAwBAADoAAAAxAAAAKAAAAB4AAAAUAAAACgAAAAEAAAA"
+    "iv3//xAAAAAEAAAAAQAAANQCAAAHAAAATF9SaW5nMACq/f//EAAAAAQAAAABAAAANAMAAAgAAABM"
+    "X0luZGV4MAAAAADO/f//EAAAAAQAAAABAAAA0AIAAAkAAABMX01pZGRsZTAAAADy/f//EAAAAAQA"
+    "AAABAAAAbAMAAAgAAABMX1Bpbmt5MgAAAAAW/v//EAAAAAQAAAABAAAAyAMAAAcAAABMX1Jpbmcz"
+    "ADb+//8QAAAABAAAAAEAAADoAwAABwAAAExfUmluZzIAVv7//xAAAAAEAAAAAQAAAAgEAAAHAAAA"
+    "TF9SaW5nMQB2/v//EAAAAAQAAAABAAAAKAMAAAgAAABMX1Bpbmt5MQAAAACa/v//EAAAAAQAAAAB"
+    "AAAABAQAAAkAAABMX01pZGRsZTMAAAC+/v//EAAAAAQAAAABAAAAYAIAAAgAAABMX1Bpbmt5MwAA"
+    "AADi/v//EAAAAAQAAAABAAAAPAQAAAkAAABMX01pZGRsZTEAAAAG////EAAAAAQAAAABAAAAWAQA"
+    "AAgAAABMX0luZGV4MwAAAAAq////EAAAAAQAAAABAAAA9AAAAAgAAABMX1Bpbmt5MAAAAABO////"
+    "EAAAAAQAAAABAAAAkAMAAAkAAABMX01pZGRsZTIAAABy////EAAAAAQAAAABAAAALAQAAAgAAABM"
+    "X0luZGV4MgAAAACW////EAAAAAQAAAABAAAASAQAAAgAAABMX0luZGV4MQAAAAC6////EAAAAAQA"
+    "AAABAAAAZAQAAAgAAABMX1RodW1iMgAAAADe////EAAAAAQAAAABAAAAmAQAAAgAAABMX1RodW1i"
+    "MQAACgAMAAAABAAIAAoAAAAQAAAABAAAAAEAAADQBAAACAAAAExfVGh1bWIwAAAAAL77//8kAAAA"
+    "AQAAAAIAAAABAAAAJAAAAGADAAAsAAAABAAAAAAAAAAJAAAAVHJhbnNmb3JtAAAASvv//wABAQH+"
+    "+///JAAAAAEAAAACAAAAAQAAACQAAAAwAwAALAAAAAQAAAAAAAAACQAAAFRyYW5zZm9ybQAAAIr7"
+    "//8AAQEBPvz//yQAAAABAAAAAgAAAAEAAAAkAAAAAAMAACwAAAAEAAAAAAAAAAkAAABUcmFuc2Zv"
+    "cm0AAADK+///AAEBAX78//8kAAAAAQAAAAIAAAABAAAAJAAAANACAAAsAAAABAAAAAAAAAAJAAAA"
+    "VHJhbnNmb3JtAAAACvz//wABAQG+/P//JAAAAAEAAAACAAAAAQAAACQAAACgAgAALAAAAAQAAAAA"
+    "AAAACQAAAFRyYW5zZm9ybQAAAEr8//8AAQEB/vz//yQAAAABAAAAAgAAAAEAAAAkAAAAcAIAACwA"
+    "AAAEAAAAAAAAAAkAAABUcmFuc2Zvcm0AAACK/P//AAEBAT79//8kAAAAAQAAAAIAAAABAAAAJAAA"
+    "AEACAAAsAAAABAAAAAAAAAAJAAAAVHJhbnNmb3JtAAAAyvz//wABAQF+/f//JAAAAAEAAAACAAAA"
+    "AQAAACQAAAAQAgAALAAAAAQAAAAAAAAACQAAAFRyYW5zZm9ybQAAAAr9//8AAQEBvv3//yQAAAAB"
+    "AAAAAgAAAAEAAAAkAAAA4AEAACwAAAAEAAAAAAAAAAkAAABUcmFuc2Zvcm0AAABK/f//AAEBAf79"
+    "//8kAAAAAQAAAAIAAAABAAAAJAAAALABAAAsAAAABAAAAAAAAAAJAAAAVHJhbnNmb3JtAAAAiv3/"
+    "/wABAQE+/v//JAAAAAEAAAACAAAAAQAAACQAAACAAQAALAAAAAQAAAAAAAAACQAAAFRyYW5zZm9y"
+    "bQAAAMr9//8AAQEBfv7//yQAAAABAAAAAgAAAAEAAAAkAAAAUAEAACwAAAAEAAAAAAAAAAkAAABU"
+    "cmFuc2Zvcm0AAAAK/v//AAEBAb7+//8kAAAAAQAAAAIAAAABAAAAJAAAACABAAAsAAAABAAAAAAA"
+    "AAAJAAAAVHJhbnNmb3JtAAAASv7//wABAQH+/v//JAAAAAEAAAACAAAAAQAAACQAAADwAAAALAAA"
+    "AAQAAAAAAAAACQAAAFRyYW5zZm9ybQAAAIr+//8AAQEBPv///yQAAAABAAAAAgAAAAEAAAAkAAAA"
+    "wAAAACwAAAAEAAAAAAAAAAkAAABUcmFuc2Zvcm0AAADK/v//AAEBAX7///8kAAAAAQAAAAIAAAAB"
+    "AAAAJAAAAJAAAAAsAAAABAAAAAAAAAAJAAAAVHJhbnNmb3JtAAAACv///wABAQG+////JAAAAAEA"
+    "AAACAAAAAQAAACQAAABgAAAALAAAAAQAAAAAAAAACQAAAFRyYW5zZm9ybQAAAKr///8AAAABAQEW"
+    "ACQAAAAEAAgADAAQABQAGAAcACAAFgAAACQAAAABAAAAAgAAAAEAAAAwAAAAMAAAACwAAAAEAAAA"
+    "AAAAAAkAAABUcmFuc2Zvcm0ADgAKAAAABwAAAAgACQAOAAAAAAAAAQEBFgAgAAAABAAIAAwAEAAU"
+    "AAAAGAAcABYAAAAgAAAAAQAAAAIAAAABAAAALAAAACwAAAAEAAAAAAAAAAkAAABUcmFuc2Zvcm0A"
+    "DgAIAAAABQAAAAYABwAOAAAAAAEBAQ=="
+)
+
+# ==============================================================================
+# HAND 왼손 트랙 정보 — TEST_hand.anmhd 에서 추출
+# (bone_name, enc_orig, c_rel_orig, t_tbl, tf4, tf6, tf7)
+#   enc_orig  : 원본 인코딩 (2=static)
+#   c_rel_orig: C-블록 정렬 기준 (sorted → C-블록 작성 순서)
+#   t_tbl     : 헤더 내 Track 테이블 절대 오프셋
+#   tf4=16    : sample_count 필드 오프셋 (항상 16)
+#   tf6       : c_rel 필드 오프셋 (0이면 short vtable, 필드 없음)
+#   tf7       : c_size 필드 오프셋 (ob=32→24, ob=36→28)
+# ==============================================================================
+_HAND_L_TRACK_INFO = [
+    ("L_Thumb0",  2, 0x000, 0x844, 16,  0, 24),
+    ("L_Thumb1",  2, 0x030, 0x7E0, 16, 24, 28),
+    ("L_Thumb2",  2, 0x060, 0x788, 16, 24, 28),
+    ("L_Index1",  2, 0x090, 0x748, 16, 24, 28),
+    ("L_Index2",  2, 0x0C0, 0x708, 16, 24, 28),
+    ("L_Index3",  2, 0x0F0, 0x6C8, 16, 24, 28),
+    ("L_Middle1", 2, 0x120, 0x688, 16, 24, 28),
+    ("L_Middle2", 2, 0x150, 0x648, 16, 24, 28),
+    ("L_Middle3", 2, 0x180, 0x608, 16, 24, 28),
+    ("L_Ring1",   2, 0x1B0, 0x5C8, 16, 24, 28),
+    ("L_Ring2",   2, 0x1E0, 0x588, 16, 24, 28),
+    ("L_Ring3",   2, 0x210, 0x548, 16, 24, 28),
+    ("L_Pinky1",  2, 0x240, 0x508, 16, 24, 28),
+    ("L_Pinky2",  2, 0x270, 0x4C8, 16, 24, 28),
+    ("L_Pinky3",  2, 0x2A0, 0x488, 16, 24, 28),
+    ("L_Index0",  2, 0x2D0, 0x448, 16, 24, 28),
+    ("L_Middle0", 2, 0x300, 0x408, 16, 24, 28),
+    ("L_Ring0",   2, 0x330, 0x3C8, 16, 24, 28),
+    ("L_Pinky0",  2, 0x360, 0x388, 16, 24, 28),
+]
+_HAND_L_CBLOCK_ORDER = sorted(_HAND_L_TRACK_INFO, key=lambda x: x[2])
+
 # ==============================================================================
 # FULLBODY 43개 뼈대 트랙 정보 (kaz_idle_ori.bin에서 추출)
 # enc: 1=프레임별 애니메이션, 2=정적 레스트 포즈 (1샘플)
@@ -563,6 +642,138 @@ def _bake_to_temp_action(obj, start_frame, end_frame):
     return original_action, baked_action
 
 
+def _load_hand_template(side='L'):
+    """LEFT-hand FlatBuffers 헤더를 로드합니다.
+    side='R'이면 헤더 내 본 이름의 'L_' 접두사를 'R_'로 패치합니다."""
+    buf = bytearray(base64.b64decode(_HAND_L_HEADER_B64))
+    if side == 'R':
+        i = 0
+        while i < len(buf) - 1:
+            if buf[i] == ord('L') and buf[i + 1] == ord('_'):
+                buf[i] = ord('R')
+            i += 1
+    return buf
+
+
+def _export_hand_side(export_path, obj, side, track_info, cblock_order,
+                      total_frames, start_frame, end_frame, target_groups):
+    """단일 손(L 또는 R) FlatBuffers HAND 파일을 내보냅니다."""
+    print(f"[*] HAND ({side}) Export → {export_path}")
+
+    # 1. 뼈대별 enc 결정
+    bone_enc = {}
+    for bn, enc_orig, *_ in track_info:
+        bone_enc[bn] = 1 if _has_keyframes(obj, bn) else enc_orig
+
+    # 2. C-rel 재계산 (animated 뼈 = total_frames×44, static = 44)
+    new_c_rel = {}
+    c_offset = 0
+    for bn, enc_orig, *_ in cblock_order:
+        enc = bone_enc[bn]
+        new_c_rel[bn] = c_offset
+        c_offset += (total_frames * 44 if enc == 1 else 44) + 4
+    raw_size = c_offset - 4 + 20
+
+    # 3. 템플릿 로드 및 패치
+    buf = _load_hand_template(side)
+    struct.pack_into('<I', buf, 0x40, total_frames - 1)
+    struct.pack_into('<I', buf, 0x54, raw_size)
+    struct.pack_into('<I', buf, 0x58, raw_size)
+    struct.pack_into('<I', buf, 0x5C, raw_size)
+
+    for bn, enc_orig, c_rel_orig, t_tbl, tf4, tf6, tf7 in track_info:
+        enc  = bone_enc[bn]
+        nc   = new_c_rel[bn]
+        sc   = total_frames if enc == 1 else 1
+        c_sz = total_frames * 44 if enc == 1 else 44
+        struct.pack_into('<I', buf, t_tbl + 12, enc)
+        struct.pack_into('<I', buf, t_tbl + tf4, sc)
+        if tf6 != 0:
+            struct.pack_into('<I', buf, t_tbl + tf6, nc)
+        struct.pack_into('<I', buf, t_tbl + tf7, c_sz)
+
+    # 4. 포즈 데이터 수집
+    group_cache = {}
+    for bn, *_ in track_info:
+        group_cache[bn] = next(
+            (g for g in target_groups.values() if bn in g["bones"]),
+            DEFAULT_FALLBACK
+        )
+
+    scene = bpy.context.scene
+    scene.frame_set(start_frame)
+    bpy.context.view_layer.update()
+    static_data = {
+        bn: _read_bone_sample(obj, bn, group_cache[bn], False)
+        for bn, enc_orig, *_ in track_info if bone_enc[bn] != 1
+    }
+
+    anim_data = {bn: [] for bn, enc_orig, *_ in track_info if bone_enc[bn] == 1}
+    for frame in range(start_frame, end_frame + 1):
+        scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        for bn in anim_data:
+            anim_data[bn].append(_read_bone_sample(obj, bn, group_cache[bn], False))
+
+    # 5. C-블록 구축
+    c_block = bytearray()
+    for i, (bn, *_) in enumerate(cblock_order):
+        is_last = (i == len(cblock_order) - 1)
+        if bone_enc[bn] == 1:
+            frames = anim_data.get(bn, [])
+            while len(frames) < total_frames:
+                frames.append(frames[-1] if frames else (1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0.0))
+            for sample in frames:
+                c_block.extend(struct.pack('<11f', *sample))
+        else:
+            c_block.extend(struct.pack('<11f', *static_data.get(bn, (1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0.0))))
+        if not is_last:
+            c_block.extend(bytes(4))
+    c_block.extend(bytes(20))
+
+    with open(export_path, 'wb') as f:
+        f.write(buf)
+        f.write(c_block)
+
+    print(f"[+] HAND ({side}) FlatBuffers Export 완료! ({len(buf) + len(c_block)} bytes)")
+
+
+def _execute_export_hand(export_path, obj):
+    """HAND 애니메이션 FlatBuffers(.anmhd) 내보내기."""
+    scene = bpy.context.scene
+    start_frame  = int(scene.frame_start)
+    end_frame    = int(scene.frame_end)
+    total_frames = max(1, end_frame - start_frame + 1)
+
+    from .profiles_tk8 import MASK_HAND_L, MASK_HAND_R
+    has_l = any(bn in obj.pose.bones for bn in MASK_HAND_L)
+    has_r = any(bn in obj.pose.bones for bn in MASK_HAND_R)
+
+    _, target_groups = PROFILE_REGISTRY.get('HAND', (set(), {}))
+
+    # R 손의 track_info / cblock_order = L 정보에서 이름만 L_→R_ 치환
+    def _r_info(info):
+        return [(bn.replace('L_', 'R_'), enc, c_rel, t_tbl, tf4, tf6, tf7)
+                for bn, enc, c_rel, t_tbl, tf4, tf6, tf7 in info]
+
+    _HAND_R_TRACK_INFO   = _r_info(_HAND_L_TRACK_INFO)
+    _HAND_R_CBLOCK_ORDER = _r_info(_HAND_L_CBLOCK_ORDER)
+
+    if has_l:
+        _export_hand_side(export_path, obj, 'L',
+                          _HAND_L_TRACK_INFO, _HAND_L_CBLOCK_ORDER,
+                          total_frames, start_frame, end_frame, target_groups)
+    if has_r:
+        if has_l:
+            base, ext = os.path.splitext(export_path)
+            r_path = base + '_R' + ext
+        else:
+            r_path = export_path
+        _export_hand_side(r_path, obj, 'R',
+                          _HAND_R_TRACK_INFO, _HAND_R_CBLOCK_ORDER,
+                          total_frames, start_frame, end_frame, target_groups)
+
+
 def execute_export(export_path, obj, anim_type, apply_apose=True, include_dummy=False):
     print(f"\n[*] Starting Polaris Export for {anim_type}")
     print(f"[*] Output File: {export_path}")
@@ -573,6 +784,10 @@ def execute_export(export_path, obj, anim_type, apply_apose=True, include_dummy=
 
     if anim_type == 'FULLBODY':
         _execute_export_fullbody(export_path, obj, apply_apose)
+        return
+
+    if anim_type == 'HAND':
+        _execute_export_hand(export_path, obj)
         return
 
     # ── 기타 카테고리: 기존 커스텀 포맷 내보내기 ──────────────────────────────
@@ -805,6 +1020,52 @@ def _execute_export_fullbody(export_path, obj, apply_apose):
 # ==============================================================================
 # 기타 카테고리 내보내기 (기존 커스텀 포맷)
 # ==============================================================================
+def _read_bone_sample(obj, bone_name, selected_group, do_apose_correction):
+    """현재 프레임에서 bone의 PANM 샘플 11개 float를 반환합니다."""
+    pbone = obj.pose.bones.get(bone_name)
+    if pbone is None:
+        return (1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0)
+
+    rx, ry, rz = selected_group["basis"]
+    do_flip    = selected_group["flip"]
+    ox, oy, oz = selected_group["offset"]
+    mx, my, mz = selected_group["loc_map"]
+    scale_div  = selected_group["scale_div"]
+
+    C_mat = mathutils.Euler(
+        (math.radians(rx), math.radians(ry), math.radians(rz)), 'XYZ'
+    ).to_matrix().to_4x4()
+    C_inv = C_mat.inverted()
+    offset_quat_inv = mathutils.Euler(
+        (math.radians(ox), math.radians(oy), math.radians(oz)), 'XYZ'
+    ).to_quaternion().inverted()
+
+    if do_apose_correction and bone_name in APOSE_OFFSETS:
+        ax, ay, az = APOSE_OFFSETS[bone_name]
+        apose_quat_inv = mathutils.Euler(
+            (math.radians(ax), math.radians(ay), math.radians(az)), 'XYZ'
+        ).to_quaternion().inverted()
+    else:
+        apose_quat_inv = mathutils.Quaternion((1, 0, 0, 0))
+
+    b_rot = pbone.rotation_quaternion.copy()
+    b_rot = apose_quat_inv @ b_rot
+    M_blender = mathutils.Matrix.LocRotScale(pbone.location, b_rot, pbone.scale)
+    M_engine   = C_inv @ M_blender @ C_mat
+    e_loc, e_rot, e_sca = M_engine.decompose()
+    e_rot = e_rot @ offset_quat_inv
+
+    qw, qx, qy, qz = e_rot.w, e_rot.x, e_rot.y, e_rot.z
+    px, py, pz = _inverse_loc_map(mx, my, mz, e_loc.x, e_loc.y, e_loc.z)
+
+    if do_flip:
+        py = -py
+        qy = -qy
+
+    px, py, pz = px * scale_div, py * scale_div, pz * scale_div
+    return (e_sca.x, e_sca.y, e_sca.z, qx, qy, qz, qw, px, py, pz, 0.0)
+
+
 def _execute_export_custom(export_path, obj, anim_type, apply_apose, include_dummy):
     print(f"[*] Custom Format Export for {anim_type}")
 
@@ -829,58 +1090,42 @@ def _execute_export_custom(export_path, obj, anim_type, apply_apose, include_dum
 
     root_bones, target_groups = PROFILE_REGISTRY.get(anim_type, (set(), {}))
     do_apose_correction = apply_apose and anim_type in ('FULLBODY', 'SWING')
-    export_data = {b: [] for b in export_bones}
 
+    # 그룹 캐시: 뼈대별 프로필 그룹 미리 조회
+    group_cache = {}
+    for bone_name in export_bones:
+        group_cache[bone_name] = next(
+            (g for g in target_groups.values() if bone_name in g["bones"]),
+            DEFAULT_FALLBACK
+        )
+
+    # 뼈대별 애니메이션 여부 판별 (키프레임 2개 이상 = animated, 아니면 static)
+    bone_is_animated = {b: _has_keyframes(obj, b) for b in export_bones}
+    animated_count = sum(1 for v in bone_is_animated.values() if v)
+    static_count   = len(export_bones) - animated_count
+    print(f"[*] Animated: {animated_count}  Static: {static_count}")
+
+    # 1. 정적 뼈대: start_frame에서 1회만 읽기
+    scene.frame_set(start_frame)
+    bpy.context.view_layer.update()
+    static_data = {}
+    for bone_name in export_bones:
+        if not bone_is_animated[bone_name]:
+            static_data[bone_name] = _read_bone_sample(
+                obj, bone_name, group_cache[bone_name], do_apose_correction
+            )
+
+    # 2. 애니메이션 뼈대: 프레임별 순회
+    anim_data = {b: [] for b in export_bones if bone_is_animated[b]}
     for frame in range(start_frame, end_frame + 1):
         scene.frame_set(frame)
-        for bone_name in export_bones:
-            pbone = obj.pose.bones[bone_name]
-            selected_group = next(
-                (g for g in target_groups.values() if bone_name in g["bones"]),
-                DEFAULT_FALLBACK
-            )
-            rx, ry, rz = selected_group["basis"]
-            do_flip    = selected_group["flip"]
-            ox, oy, oz = selected_group["offset"]
-            mx, my, mz = selected_group["loc_map"]
-            scale_div  = selected_group["scale_div"]
-
-            C_mat = mathutils.Euler(
-                (math.radians(rx), math.radians(ry), math.radians(rz)), 'XYZ'
-            ).to_matrix().to_4x4()
-            C_inv = C_mat.inverted()
-            offset_quat_inv = mathutils.Euler(
-                (math.radians(ox), math.radians(oy), math.radians(oz)), 'XYZ'
-            ).to_quaternion().inverted()
-
-            if do_apose_correction and bone_name in APOSE_OFFSETS:
-                ax, ay, az = APOSE_OFFSETS[bone_name]
-                apose_quat_inv = mathutils.Euler(
-                    (math.radians(ax), math.radians(ay), math.radians(az)), 'XYZ'
-                ).to_quaternion().inverted()
-            else:
-                apose_quat_inv = mathutils.Quaternion((1, 0, 0, 0))
-
-            b_rot = pbone.rotation_quaternion.copy()
-            b_rot = apose_quat_inv @ b_rot
-            M_blender = mathutils.Matrix.LocRotScale(pbone.location, b_rot, pbone.scale)
-            M_engine   = C_inv @ M_blender @ C_mat
-            e_loc, e_rot, e_sca = M_engine.decompose()
-            e_rot = e_rot @ offset_quat_inv
-
-            qw, qx, qy, qz = e_rot.w, e_rot.x, e_rot.y, e_rot.z
-            px, py, pz = _inverse_loc_map(mx, my, mz, e_loc.x, e_loc.y, e_loc.z)
-
-            if do_flip:
-                py = -py
-                qy = -qy
-
-            px, py, pz = px * scale_div, py * scale_div, pz * scale_div
-            export_data[bone_name].append(
-                (e_sca.x, e_sca.y, e_sca.z, qx, qy, qz, qw, px, py, pz, 0.0)
+        bpy.context.view_layer.update()
+        for bone_name in anim_data:
+            anim_data[bone_name].append(
+                _read_bone_sample(obj, bone_name, group_cache[bone_name], do_apose_correction)
             )
 
-    # 커스텀 바이너리 구축
+    # 3. 커스텀 바이너리 구축
     buffer = bytearray(b'\x00' * 0x98)
     struct.pack_into('<I', buffer, 0x40, total_frames - 1)
     struct.pack_into('<I', buffer, 0x94, len(export_bones))
@@ -889,6 +1134,10 @@ def _execute_export_custom(export_path, obj, anim_type, apply_apose, include_dum
     bone_c_offset_positions = []
 
     for i, b_name in enumerate(export_bones):
+        is_anim     = bone_is_animated[b_name]
+        anim_flag   = 1 if is_anim else 2
+        bone_frames = total_frames if is_anim else 1
+
         current_a_offset = len(buffer)
         rel_offset = current_a_offset - (0x98 + i * 4)
         struct.pack_into('<I', buffer, 0x98 + i * 4, rel_offset)
@@ -909,15 +1158,15 @@ def _execute_export_custom(export_path, obj, anim_type, apply_apose, include_dum
         struct.pack_into('<I', buffer, rel_b_offset_pos, rel_b_offset)
 
         buffer.extend(b'\x00' * 0x0C)
-        buffer.extend(struct.pack('<I', 0x24))
-        buffer.extend(struct.pack('<I', 0))
-        buffer.extend(struct.pack('<I', 1))
-        buffer.extend(struct.pack('<I', total_frames))
-        buffer.extend(struct.pack('<I', 0))
+        buffer.extend(struct.pack('<I', 0x24))       # indicator
+        buffer.extend(struct.pack('<I', 0))           # +0x10
+        buffer.extend(struct.pack('<I', anim_flag))   # +0x14
+        buffer.extend(struct.pack('<I', bone_frames)) # +0x18
+        buffer.extend(struct.pack('<I', 0))           # +0x1C
 
         c_offset_pos = len(buffer)
-        buffer.extend(struct.pack('<I', 0))
-        buffer.extend(struct.pack('<I', 0))
+        buffer.extend(struct.pack('<I', 0))           # +0x20: c_rel placeholder
+        buffer.extend(struct.pack('<I', 0))           # +0x24
         bone_c_offset_positions.append(c_offset_pos)
 
     pad_len = (16 - (len(buffer) % 16)) % 16
@@ -928,8 +1177,11 @@ def _execute_export_custom(export_path, obj, anim_type, apply_apose, include_dum
     for i, b_name in enumerate(export_bones):
         c_offset = len(buffer) - first_c_ptr
         struct.pack_into('<I', buffer, bone_c_offset_positions[i], c_offset)
-        for frame_data in export_data[b_name]:
-            buffer.extend(struct.pack('<11f', *frame_data))
+        if bone_is_animated[b_name]:
+            for frame_data in anim_data[b_name]:
+                buffer.extend(struct.pack('<11f', *frame_data))
+        else:
+            buffer.extend(struct.pack('<11f', *static_data[b_name]))
 
     with open(export_path, 'wb') as f:
         f.write(buffer)

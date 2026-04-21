@@ -280,8 +280,7 @@ class IMPORT_MT_polaris_tk(Menu):
     def draw(self, context):
         layout = self.layout
         layout.operator(ImportPolarisFullbody.bl_idname, text="Fullbody Animation (.bin)")
-        # 아래 항목들은 임시 비활성화 (로직 유지, UI만 숨김)
-        # layout.operator(ImportPolarisHand.bl_idname, text="Hand Animation (.anmhd)")
+        layout.operator(ImportPolarisHand.bl_idname, text="Hand Animation (.anmhd)")
         # layout.operator(ImportPolarisFacial.bl_idname, text="Facial Animation (.anmfa)")
         # layout.operator(ImportPolarisSwing.bl_idname, text="Swing Animation (.anmsw)")
         # layout.separator()
@@ -295,8 +294,7 @@ class EXPORT_MT_polaris_tk(Menu):
     def draw(self, context):
         layout = self.layout
         layout.operator(ExportPolarisFullbody.bl_idname, text="Fullbody Animation (.bin)")
-        # 아래 항목들은 임시 비활성화 (로직 유지, UI만 숨김)
-        # layout.operator(ExportPolarisHand.bl_idname, text="Hand Animation (.anmhd)")
+        layout.operator(ExportPolarisHand.bl_idname, text="Hand Animation (.anmhd)")
         # layout.operator(ExportPolarisFacial.bl_idname, text="Facial Animation (.anmfa)")
         # layout.operator(ExportPolarisSwing.bl_idname, text="Swing Animation (.anmsw)")
         # layout.separator()
