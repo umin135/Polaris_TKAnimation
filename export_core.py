@@ -704,7 +704,7 @@ def _export_hand_side(export_path, obj, side, track_info, cblock_order,
     scene.frame_set(start_frame)
     bpy.context.view_layer.update()
     static_data = {
-        bn: _read_bone_sample(obj, bn, group_cache[bn], False)
+        bn: _read_bone_sample(obj, bn, group_cache[bn], True)
         for bn, enc_orig, *_ in track_info if bone_enc[bn] != 1
     }
 
@@ -713,7 +713,7 @@ def _export_hand_side(export_path, obj, side, track_info, cblock_order,
         scene.frame_set(frame)
         bpy.context.view_layer.update()
         for bn in anim_data:
-            anim_data[bn].append(_read_bone_sample(obj, bn, group_cache[bn], False))
+            anim_data[bn].append(_read_bone_sample(obj, bn, group_cache[bn], True))
 
     # 5. C-블록 구축
     c_block = bytearray()

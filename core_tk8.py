@@ -155,7 +155,7 @@ def import_tk8_anim(filepath, obj, anim_type, apply_apose, include_dummy):
             pbone.scale = (1, 1, 1)
 
     root_bones, target_groups = PROFILE_REGISTRY.get(anim_type, (set(), {}))
-    do_apose_correction = apply_apose and anim_type in ('FULLBODY', 'SWING')
+    do_apose_correction = apply_apose and anim_type in ('FULLBODY', 'SWING', 'HAND')
 
     with open(filepath, 'rb') as f:
         f.seek(0x40)
