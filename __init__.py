@@ -20,9 +20,12 @@ else:
     from . import export_core
 
 import os
+import re
 import shutil
 import tempfile
 import threading
+import urllib.error
+import urllib.parse
 import urllib.request
 import bpy.utils.previews
 from bpy_extras.io_utils import ImportHelper, ExportHelper
@@ -31,7 +34,12 @@ from bpy.types import Operator, Menu
 
 custom_icons = None
 
-_RIG_DOWNLOAD_URL = "https://drive.usercontent.google.com/u/0/uc?id=1SHMQgMCYcJQdhoijfjaNTqneeYpijQAa&export=download"
+_RIG_FILE_ID      = "1SHMQgMCYcJQdhoijfjaNTqneeYpijQAa"
+# confirm=t skips Drive's "can't scan this file for viruses" page, which Drive serves
+# instead of the file for anything it can't scan (polaris_base.blend is zstd-compressed).
+_RIG_DOWNLOAD_URL = f"https://drive.usercontent.google.com/download?id={_RIG_FILE_ID}&export=download&confirm=t"
+_RIG_SHARE_URL    = f"https://drive.google.com/file/d/{_RIG_FILE_ID}/view"
+_RIG_MIN_SIZE     = 1 << 20   # the real file is ~39 MB; Drive's warning/error pages are a few KB
 _download_state   = {"running": False, "done": False, "error": None}
 
 # =========================================================
@@ -119,21 +127,118 @@ _ASSET_OBJECT_NAMES_IK = {"SINGLE-P1-ARMATURE-IK", "SINGLE-P1-MESH-IK", "Single_
 def _asset_path():
     return os.path.join(os.path.dirname(__file__), "assets", "polaris_base.blend")
 
-def _do_download(url, dest):
+def _asset_ok():
+    # Cheap enough for panel redraws. Older versions saved Drive's ~2 KB warning page
+    # as polaris_base.blend; treat that as missing so the Download button comes back.
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req) as resp, open(dest, "wb") as f:
-            while True:
-                chunk = resp.read(1 << 16)
-                if not chunk:
-                    break
+        return os.path.getsize(_asset_path()) >= _RIG_MIN_SIZE
+    except OSError:
+        return False
+
+def _require_asset(operator):
+    if _asset_ok():
+        return True
+    if os.path.exists(_asset_path()):
+        operator.report({'ERROR'}, "polaris_base.blend is broken (not the real file). Use 'Download Requirements' again.")
+    else:
+        operator.report({'ERROR'}, f"Asset file not found: {_asset_path()}")
+    return False
+
+_BLEND_MAGIC_RAW  = b"BLENDER"
+_BLEND_MAGIC_ZSTD = b"\x28\xb5\x2f\xfd"   # Blender 3.0+ compressed .blend
+_BLEND_MAGIC_GZIP = b"\x1f\x8b"           # Blender 2.x compressed .blend
+
+def _looks_like_blend(head):
+    return head.startswith((_BLEND_MAGIC_RAW, _BLEND_MAGIC_ZSTD, _BLEND_MAGIC_GZIP))
+
+def _check_blend_file(path):
+    """Raise RuntimeError with a readable message if path is not a usable .blend."""
+    size = os.path.getsize(path)
+    with open(path, "rb") as f:
+        head = f.read(1 << 16)
+    if not _looks_like_blend(head):
+        raise RuntimeError(f"downloaded data is not a .blend file (starts with {head[:8]!r}).")
+    if size < _RIG_MIN_SIZE:
+        raise RuntimeError(f"downloaded file is only {size} bytes, the real file is about 39 MB.")
+    if head.startswith(_BLEND_MAGIC_ZSTD):
+        # Decompress the first bytes when the zstandard module is available
+        # (bundled with most Blender builds); otherwise the zstd magic has to do.
+        try:
+            import zstandard
+        except ImportError:
+            return
+        try:
+            inner = zstandard.ZstdDecompressor().decompressobj().decompress(head)
+        except zstandard.ZstdError as e:
+            raise RuntimeError(f"downloaded .blend is corrupt ({e}).")
+        if not inner.startswith(_BLEND_MAGIC_RAW):
+            raise RuntimeError("downloaded file is zstd data but not a .blend.")
+
+def _drive_retry_url(html):
+    """Build the 'Download anyway' URL from Drive's warning page, or None."""
+    m = re.search(r'<form[^>]*id="download-form"[^>]*action="([^"]+)"(.*?)</form>', html, re.S)
+    if not m:
+        return None
+    fields = dict(re.findall(r'<input[^>]*type="hidden"[^>]*name="([^"]+)"[^>]*value="([^"]*)"', m.group(2)))
+    if "id" not in fields:
+        return None
+    return m.group(1) + "?" + urllib.parse.urlencode(fields)
+
+def _html_title(html):
+    m = re.search(r"<title>(.*?)</title>", html, re.S | re.I)
+    return m.group(1).strip() if m else "no title"
+
+def _fetch_blend(url, part_path, allow_retry=True):
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        first = resp.read(1 << 16)
+        content_type = resp.headers.get("Content-Type", "")
+        if "text/html" in content_type or not _looks_like_blend(first):
+            # Drive answered with a web page (virus-scan warning, quota exceeded, sign-in, ...).
+            html = (first + resp.read(1 << 20)).decode("utf-8", "replace")
+            retry = _drive_retry_url(html) if allow_retry else None
+            if retry:
+                resp.close()
+                return _fetch_blend(retry, part_path, allow_retry=False)
+            raise RuntimeError(
+                f"Google Drive returned a web page instead of the file ('{_html_title(html)}'). "
+                f"The link may have hit Drive's download quota or no longer be public. "
+                f"Try again later, or download it from {_RIG_SHARE_URL} "
+                f"and save it as {_asset_path()}")
+
+        expected = resp.headers.get("Content-Length")
+        written = 0
+        with open(part_path, "wb") as f:
+            chunk = first
+            while chunk:
                 f.write(chunk)
+                written += len(chunk)
+                chunk = resp.read(1 << 16)
+        if expected and expected.isdigit() and written != int(expected):
+            raise RuntimeError(f"download was cut off ({written} of {expected} bytes).")
+
+def _do_download(url, dest):
+    # Download into a .part file and only replace dest once the file checks out,
+    # so a failed re-download keeps the existing working asset.
+    part = dest + ".part"
+    try:
+        _fetch_blend(url, part)
+        _check_blend_file(part)
+        os.replace(part, dest)
         _download_state["done"] = True
+    except urllib.error.HTTPError as e:
+        _download_state["error"] = (f"Google Drive answered HTTP {e.code} ({e.reason}). "
+                                    f"The file may have been removed or made private: {_RIG_SHARE_URL}")
+    except urllib.error.URLError as e:
+        _download_state["error"] = f"could not reach Google Drive ({e.reason}). Check your internet connection."
     except Exception as e:
         _download_state["error"] = str(e)
-        if os.path.exists(dest):
-            os.remove(dest)
     finally:
+        if os.path.exists(part):
+            try:
+                os.remove(part)
+            except OSError:
+                pass
         _download_state["running"] = False
 
 class POLARIS_OT_download_rig(Operator):
@@ -187,9 +292,8 @@ class POLARIS_OT_append_assets(Operator):
     bl_description = "Append the Polaris armature and mesh into the current scene"
 
     def execute(self, context):
-        asset_path = os.path.join(os.path.dirname(__file__), "assets", "polaris_base.blend")
-        if not os.path.exists(asset_path):
-            self.report({'ERROR'}, f"Asset file not found: {asset_path}")
+        asset_path = _asset_path()
+        if not _require_asset(self):
             return {'CANCELLED'}
 
         n = 1
@@ -221,9 +325,8 @@ class POLARIS_OT_append_assets_ik(Operator):
     bl_description = "Append the Polaris IK armature and mesh into the current scene"
 
     def execute(self, context):
-        asset_path = os.path.join(os.path.dirname(__file__), "assets", "polaris_base.blend")
-        if not os.path.exists(asset_path):
-            self.report({'ERROR'}, f"Asset file not found: {asset_path}")
+        asset_path = _asset_path()
+        if not _require_asset(self):
             return {'CANCELLED'}
 
         n = 1
@@ -263,7 +366,7 @@ class POLARIS_PT_sidebar(bpy.types.Panel):
 
         if _download_state["running"]:
             layout.label(text="Downloading...", icon='SORTTIME')
-        elif not os.path.exists(_asset_path()):
+        elif not _asset_ok():
             layout.operator(POLARIS_OT_download_rig.bl_idname, icon='IMPORT')
         else:
             layout.operator(POLARIS_OT_append_assets.bl_idname,    icon_value=icon_id)
